@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "FlowSave.h"
+#include "FlowTypes.h"
 #include "FlowAsset.generated.h"
 
 class UFlowNode;
@@ -41,8 +42,10 @@ class FLOW_API UFlowAsset : public UObject
 	friend class UFlowNode;
 	friend class UFlowNode_CustomOutput;
 	friend class UFlowNode_SubGraph;
+	friend class UFlowSubsystem;
 
 	friend class FFlowAssetDetails;
+	friend class UFlowGraphSchema;
 
 //////////////////////////////////////////////////////////////////////////
 // Graph
@@ -79,6 +82,9 @@ public:
 //////////////////////////////////////////////////////////////////////////
 // Nodes
 
+protected:
+	TArray<TSubclassOf<UFlowNode>> AllowedNodeClasses;	
+
 private:
 	UPROPERTY()
 	TMap<FGuid, UFlowNode*> Nodes;
@@ -105,10 +111,10 @@ public:
 
 	void RegisterNode(const FGuid& NewGuid, UFlowNode* NewNode);
 	void UnregisterNode(const FGuid& NodeGuid);
-#endif
 
 	// Processes all nodes and creates map of all pin connections
 	void HarvestNodeConnections();
+#endif
 
 	UFlowNode* GetNode(const FGuid& Guid) const;
 	TMap<FGuid, UFlowNode*> GetNodes() const { return Nodes; }
@@ -129,7 +135,7 @@ private:
 #endif
 
 public:
-	void AddInstance(UFlowAsset* NewInstance);
+	void AddInstance(UFlowAsset* Instance);
 	int32 RemoveInstance(UFlowAsset* Instance);
 
 	void ClearInstances();
@@ -141,12 +147,12 @@ public:
 	void SetInspectedInstance(const FName& NewInspectedInstanceName);
 	UFlowAsset* GetInspectedInstance() const { return InspectedInstance.IsValid() ? InspectedInstance.Get() : nullptr; }
 
-	DECLARE_EVENT(UFlowAsset, FRegenerateToolbarsEvent);
-	FRegenerateToolbarsEvent& OnRegenerateToolbars() { return RegenerateToolbarsEvent; }
-	FRegenerateToolbarsEvent RegenerateToolbarsEvent;
+	DECLARE_EVENT(UFlowAsset, FRefreshDebuggerEvent);
+	FRefreshDebuggerEvent& OnDebuggerRefresh() { return RefreshDebuggerEvent; }
+	FRefreshDebuggerEvent RefreshDebuggerEvent;
 
 private:
-	void BroadcastRegenerateToolbars() const { RegenerateToolbarsEvent.Broadcast(); }
+	void BroadcastDebuggerRefresh() const { RefreshDebuggerEvent.Broadcast(); }
 #endif
 
 //////////////////////////////////////////////////////////////////////////
@@ -185,6 +191,8 @@ private:
 	UPROPERTY()
 	TArray<UFlowNode*> RecordedNodes;
 
+	EFlowFinishPolicy FinishPolicy;
+
 public:
 	void InitializeInstance(const TWeakObjectPtr<UObject> InOwner, UFlowAsset* InTemplateAsset);
 
@@ -205,9 +213,8 @@ public:
 
 	virtual void PreStartFlow();
 	virtual void StartFlow();
-	virtual void StartAsSubFlow(UFlowNode_SubGraph* SubGraphNode);
 	
-	virtual void FinishFlow(const bool bFlowCompleted);
+	virtual void FinishFlow(const EFlowFinishPolicy InFinishPolicy);
 
 	// Get Flow Asset instance created by the given SubGraph node
 	TWeakObjectPtr<UFlowAsset> GetFlowInstance(UFlowNode_SubGraph* SubGraphNode) const;
@@ -227,7 +234,6 @@ public:
 
 	UFlowNode_SubGraph* GetNodeOwningThisAssetInstance() const;
 	UFlowAsset* GetMasterInstance() const;
-	UFlowNode* GetNodeInstance(const FGuid Guid) const;
 
 	// Are there any active nodes?
 	UFUNCTION(BlueprintPure, Category = "Flow")
@@ -249,6 +255,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Flow")
 	void LoadInstance(const FFlowAssetSaveData& AssetRecord);
+
+private:
+	void OnActivationStateLoaded(UFlowNode* Node);
 
 protected:
 	UFUNCTION(BlueprintNativeEvent, Category = "SaveGame")

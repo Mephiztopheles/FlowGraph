@@ -67,7 +67,7 @@ void UFlowComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (UFlowSubsystem* FlowSubsystem = GetFlowSubsystem())
 	{
-		FlowSubsystem->FinishRootFlow(this);
+		FlowSubsystem->FinishRootFlow(this, EFlowFinishPolicy::Keep);
 		FlowSubsystem->UnregisterComponent(this);
 	}
 
@@ -235,7 +235,7 @@ void UFlowComponent::BulkNotifyGraph(const FGameplayTagContainer NotifyTags, con
 		{
 			// save recently notify, this allow for the retroactive check in nodes
 			// if retroactive check wouldn't be performed, this is only used by the network replication
-			RecentlySentNotifyTags = NotifyTags;
+			RecentlySentNotifyTags = ValidatedTags;
 
 			OnRep_SentNotifyTags();
 		}
@@ -265,14 +265,14 @@ void UFlowComponent::NotifyFromGraph(const FGameplayTagContainer& NotifyTags, co
 
 		if (ValidatedTags.Num() > 0)
 		{
-			for (const FGameplayTag& NotifyTag : NotifyTags)
+			for (const FGameplayTag& ValidatedTag : ValidatedTags)
 			{
-				ReceiveNotify.Broadcast(nullptr, NotifyTag);
+				ReceiveNotify.Broadcast(nullptr, ValidatedTag);
 			}
 
 			if (IsNetMode(NM_DedicatedServer) || IsNetMode(NM_ListenServer))
 			{
-				NotifyTagsFromGraph = NotifyTags;
+				NotifyTagsFromGraph = ValidatedTags;
 			}
 		}
 	}
@@ -290,9 +290,9 @@ void UFlowComponent::NotifyActor(const FGameplayTag ActorTag, const FGameplayTag
 {
 	if (IsFlowNetMode(NetMode) && NotifyTag.IsValid() && HasBegunPlay())
 	{
-		if (UFlowSubsystem* FlowSubsystem = GetFlowSubsystem())
+		if (const UFlowSubsystem* FlowSubsystem = GetFlowSubsystem())
 		{
-			for (TWeakObjectPtr<UFlowComponent>& Component : FlowSubsystem->GetComponents<UFlowComponent>(ActorTag))
+			for (const TWeakObjectPtr<UFlowComponent>& Component : FlowSubsystem->GetComponents<UFlowComponent>(ActorTag))
 			{
 				Component->ReceiveNotify.Broadcast(this, NotifyTag);
 			}
@@ -308,11 +308,11 @@ void UFlowComponent::NotifyActor(const FGameplayTag ActorTag, const FGameplayTag
 
 void UFlowComponent::OnRep_NotifyTagsFromAnotherComponent()
 {
-	if (UFlowSubsystem* FlowSubsystem = GetFlowSubsystem())
+	if (const UFlowSubsystem* FlowSubsystem = GetFlowSubsystem())
 	{
 		for (const FNotifyTagReplication& Notify : NotifyTagsFromAnotherComponent)
 		{
-			for (TWeakObjectPtr<UFlowComponent>& Component : FlowSubsystem->GetComponents<UFlowComponent>(Notify.ActorTag))
+			for (const TWeakObjectPtr<UFlowComponent>& Component : FlowSubsystem->GetComponents<UFlowComponent>(Notify.ActorTag))
 			{
 				Component->ReceiveNotify.Broadcast(this, Notify.NotifyTag);
 			}
@@ -331,17 +331,17 @@ void UFlowComponent::StartRootFlow()
 	}
 }
 
-void UFlowComponent::FinishRootFlow()
+void UFlowComponent::FinishRootFlow(const EFlowFinishPolicy FinishPolicy)
 {
 	if (UFlowSubsystem* FlowSubsystem = GetFlowSubsystem())
 	{
-		FlowSubsystem->FinishRootFlow(this);
+		FlowSubsystem->FinishRootFlow(this, FinishPolicy);
 	}
 }
 
 UFlowAsset* UFlowComponent::GetRootFlowInstance()
 {
-	if (UFlowSubsystem* FlowSubsystem = GetFlowSubsystem())
+	if (const UFlowSubsystem* FlowSubsystem = GetFlowSubsystem())
 	{
 		return FlowSubsystem->GetRootFlow(this);
 	}

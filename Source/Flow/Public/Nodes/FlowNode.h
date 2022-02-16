@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "EdGraph/EdGraphNode.h"
 #include "Engine/StreamableManager.h"
 #include "GameplayTagContainer.h"
 #include "VisualLogger/VisualLoggerDebugSnapshotInterface.h"
@@ -8,8 +9,6 @@
 #include "FlowTypes.h"
 #include "Nodes/FlowPin.h"
 #include "FlowNode.generated.h"
-
-class UEdGraphNode;
 
 class UFlowAsset;
 class UFlowSubsystem;
@@ -29,6 +28,7 @@ class FLOW_API UFlowNode : public UObject, public IVisualLoggerDebugSnapshotInte
 	friend class SFlowGraphNode;
 	friend class UFlowAsset;
 	friend class UFlowGraphNode;
+	friend class UFlowGraphSchema;
 
 //////////////////////////////////////////////////////////////////////////
 // Node
@@ -44,6 +44,16 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "FlowNode")
 	EFlowNodeStyle NodeStyle;
+
+	uint8 bCanDelete : 1;
+	uint8 bCanDuplicate : 1;
+
+	UPROPERTY(EditDefaultsOnly, Category = "FlowNode")
+	bool bNodeDeprecated;
+	
+	// If this node is deprecated, it might be replaced by another node
+	UPROPERTY(EditDefaultsOnly, Category = "FlowNode")
+	TSubclassOf<UFlowNode> ReplacedBy;
 
 public:
 	FFlowNodeEvent OnReconstructionRequested;
@@ -70,7 +80,7 @@ public:
 	virtual FText GetNodeToolTip() const;
 	
 	// This method allows to have different for every node instance, i.e. Red if node represents enemy, Green if node represents a friend
-	virtual bool GetNodeTitleColor(FLinearColor& OutColor) const { return false; }
+	virtual bool GetDynamicTitleColor(FLinearColor& OutColor) const { return false; }
 
 	EFlowNodeStyle GetNodeStyle() const { return NodeStyle; }
 
@@ -159,7 +169,7 @@ private:
 	TMap<FName, FConnectedPin> Connections;
 
 public:
-	void SetConnections(TMap<FName, FConnectedPin>& InConnections) { Connections = InConnections; }
+	void SetConnections(const TMap<FName, FConnectedPin>& InConnections) { Connections = InConnections; }
 	FConnectedPin GetConnection(const FName OutputName) const { return Connections.FindRef(OutputName); }
 	TSet<UFlowNode*> GetConnectedNodes() const;
 
@@ -186,7 +196,7 @@ protected:
 	FStreamableManager StreamableManager;
 
 	UPROPERTY(SaveGame)
-	EFlowActivationState ActivationState;
+	EFlowNodeState ActivationState;
 	
 #if !UE_BUILD_SHIPPING
 private:
@@ -268,15 +278,13 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "FlowNode", meta = (DisplayName = "ForceFinishNode"))
 	void K2_ForceFinishNode();
 
-#if !UE_BUILD_SHIPPING
 private:
 	void ResetRecords();
-#endif
 
 #if WITH_EDITOR
 public:
 	UFlowNode* GetInspectedInstance() const;
-	EFlowActivationState GetActivationState() const { return ActivationState; }
+	EFlowNodeState GetActivationState() const { return ActivationState; }
 
 	TMap<uint8, FPinRecord> GetWireRecords() const;
 	TArray<FPinRecord> GetPinRecords(const FName& PinName, const EEdGraphPinDirection PinDirection) const;
@@ -334,7 +342,7 @@ public:
 	static FString GetProgressAsString(float Value);
 
 	UFUNCTION(BlueprintCallable, Category = "FlowNode")
-	void LogError(FString Message);
+	void LogError(FString Message, const EFlowOnScreenMessageType OnScreenMessageType = EFlowOnScreenMessageType::Permanent) const;
 
 	UFUNCTION(BlueprintCallable, Category = "FlowNode")
 	void SaveInstance(FFlowNodeSaveData& NodeRecord);

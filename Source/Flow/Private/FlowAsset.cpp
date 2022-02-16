@@ -16,8 +16,10 @@ UFlowAsset::UFlowAsset(const FObjectInitializer& ObjectInitializer)
 #if WITH_EDITOR
 	, FlowGraph(nullptr)
 #endif
+	, AllowedNodeClasses({UFlowNode::StaticClass()})
 	, TemplateAsset(nullptr)
 	, StartNode(nullptr)
+	, FinishPolicy(EFlowFinishPolicy::Keep)
 {
 }
 
@@ -53,11 +55,16 @@ void UFlowAsset::PostDuplicate(bool bDuplicateForPIE)
 
 EDataValidationResult UFlowAsset::IsDataValid(TArray<FText>& ValidationErrors)
 {
-	for (const TPair<FGuid, UFlowNode*>& NodePair : Nodes)
+	for (const TPair<FGuid, UFlowNode*>& Node : Nodes)
 	{
-		const EDataValidationResult Result = NodePair.Value->IsDataValid(ValidationErrors);
-		if (Result == EDataValidationResult::Invalid)
+		if (Node.Value == nullptr || Node.Value->IsDataValid(ValidationErrors) == EDataValidationResult::Invalid)
 		{
+			// refresh data if Node is missing, i.e. its class has been deleted
+			if (Node.Value == nullptr)
+			{
+				HarvestNodeConnections();
+			}
+
 			return EDataValidationResult::Invalid;
 		}
 	}
@@ -98,11 +105,11 @@ void UFlowAsset::UnregisterNode(const FGuid& NodeGuid)
 	HarvestNodeConnections();
 	MarkPackageDirty();
 }
-#endif
 
 void UFlowAsset::HarvestNodeConnections()
 {
 	TMap<FName, FConnectedPin> Connections;
+	bool bGraphDirty = false;
 
 	// last moment to remove invalid nodes
 	for (auto NodeIt = Nodes.CreateIterator(); NodeIt; ++NodeIt)
@@ -111,51 +118,76 @@ void UFlowAsset::HarvestNodeConnections()
 		if (Pair.Value == nullptr)
 		{
 			NodeIt.RemoveCurrent();
+			bGraphDirty = true;
 		}
 	}
 
 	for (const TPair<FGuid, UFlowNode*>& Pair : Nodes)
 	{
 		UFlowNode* Node = Pair.Value;
-		Connections.Empty();
+		TMap<FName, FConnectedPin> FoundConnections;
 
 		for (const UEdGraphPin* ThisPin : Node->GetGraphNode()->Pins)
 		{
 			if (ThisPin->Direction == EGPD_Output && ThisPin->LinkedTo.Num() > 0)
 			{
-				if (UEdGraphPin* LinkedPin = ThisPin->LinkedTo[0])
+				if (const UEdGraphPin* LinkedPin = ThisPin->LinkedTo[0])
 				{
 					const UEdGraphNode* LinkedNode = LinkedPin->GetOwningNode();
-					Connections.Add(ThisPin->PinName, FConnectedPin(LinkedNode->NodeGuid, LinkedPin->PinName));
+					FoundConnections.Add(ThisPin->PinName, FConnectedPin(LinkedNode->NodeGuid, LinkedPin->PinName));
 				}
 			}
 		}
 
-#if WITH_EDITOR
-		Node->SetFlags(RF_Transactional);
-		Node->Modify();
-#endif
-		Node->SetConnections(Connections);
+		// This check exists to ensure that we don't mark graph dirty, if none of connections changed
+		// Optimization: we need check it only until the first node would be marked dirty, as this already marks Flow Asset package dirty
+		if (bGraphDirty == false)
+		{
+			if (FoundConnections.Num() != Node->Connections.Num())
+			{
+				bGraphDirty = true;
+			}
+			else
+			{
+				for (const TPair<FName, FConnectedPin>& FoundConnection : FoundConnections)
+				{
+					if (const FConnectedPin* OldConnection = Node->Connections.Find(FoundConnection.Key))
+					{
+						if (FoundConnection.Value != *OldConnection)
+						{
+							bGraphDirty = true;
+							break;
+						}
+					}
+					else
+					{
+						bGraphDirty = true;
+						break;
+					}
+				}
+			}
+		}
 
-#if WITH_EDITOR
-		Node->PostEditChange();
-#endif
+		if (bGraphDirty)
+		{
+			Node->SetFlags(RF_Transactional);
+			Node->Modify();
+
+			Node->SetConnections(FoundConnections);
+			Node->PostEditChange();
+		}
 	}
 }
+#endif
 
 UFlowNode* UFlowAsset::GetNode(const FGuid& Guid) const
 {
-	if (UFlowNode* Node = Nodes.FindRef(Guid))
-	{
-		return Node;
-	}
-
-	return nullptr;
+	return Nodes.FindRef(Guid);
 }
 
-void UFlowAsset::AddInstance(UFlowAsset* NewInstance)
+void UFlowAsset::AddInstance(UFlowAsset* Instance)
 {
-	ActiveInstances.Add(NewInstance);
+	ActiveInstances.Add(Instance);
 }
 
 int32 UFlowAsset::RemoveInstance(UFlowAsset* Instance)
@@ -182,9 +214,9 @@ void UFlowAsset::ClearInstances()
 
 	for (int32 i = ActiveInstances.Num() - 1; i >= 0; i--)
 	{
-		if (ActiveInstances[i])
+		if (ActiveInstances.IsValidIndex(i) && ActiveInstances[i])
 		{
-			ActiveInstances[i]->FinishFlow(false);
+			ActiveInstances[i]->FinishFlow(EFlowFinishPolicy::Keep);
 		}
 	}
 
@@ -194,7 +226,7 @@ void UFlowAsset::ClearInstances()
 #if WITH_EDITOR
 void UFlowAsset::GetInstanceDisplayNames(TArray<TSharedPtr<FName>>& OutDisplayNames) const
 {
-	for (UFlowAsset* Instance : ActiveInstances)
+	for (const UFlowAsset* Instance : ActiveInstances)
 	{
 		OutDisplayNames.Emplace(MakeShareable(new FName(Instance->GetDisplayName())));
 	}
@@ -221,7 +253,7 @@ void UFlowAsset::SetInspectedInstance(const FName& NewInspectedInstanceName)
 		}
 	}
 
-	BroadcastRegenerateToolbars();
+	BroadcastDebuggerRefresh();
 }
 #endif
 
@@ -292,11 +324,13 @@ void UFlowAsset::PreStartFlow()
 #if WITH_EDITOR
 	if (TemplateAsset->ActiveInstances.Num() == 1)
 	{
+		// this instance is the only active one, set it directly as Inspected Instance
 		TemplateAsset->SetInspectedInstance(GetDisplayName());
 	}
 	else
 	{
-		TemplateAsset->BroadcastRegenerateToolbars();
+		// request to refresh list to show newly created instance
+		TemplateAsset->BroadcastDebuggerRefresh();
 	}
 #endif
 }
@@ -310,16 +344,10 @@ void UFlowAsset::StartFlow()
 	StartNode->TriggerFirstOutput(true);
 }
 
-void UFlowAsset::StartAsSubFlow(UFlowNode_SubGraph* SubGraphNode)
+void UFlowAsset::FinishFlow(const EFlowFinishPolicy InFinishPolicy)
 {
-	NodeOwningThisAssetInstance = SubGraphNode;
-	NodeOwningThisAssetInstance->GetFlowAsset()->ActiveSubGraphs.Add(SubGraphNode, this);
+	FinishPolicy = InFinishPolicy;
 
-	StartFlow();
-}
-
-void UFlowAsset::FinishFlow(const bool bFlowCompleted)
-{
 	// end execution of this asset and all of its nodes
 	for (UFlowNode* Node : ActiveNodes)
 	{
@@ -339,18 +367,6 @@ void UFlowAsset::FinishFlow(const bool bFlowCompleted)
 	if (ActiveInstancesLeft == 0 && GetFlowSubsystem())
 	{
 		GetFlowSubsystem()->RemoveInstancedTemplate(TemplateAsset);
-	}
-
-	// if this instance was created by SubGraph node
-	if (NodeOwningThisAssetInstance.IsValid())
-	{
-		NodeOwningThisAssetInstance->GetFlowAsset()->ActiveSubGraphs.Remove(NodeOwningThisAssetInstance.Get());
-		if (bFlowCompleted)
-		{
-			NodeOwningThisAssetInstance.Get()->TriggerFirstOutput(true);
-		}
-
-		NodeOwningThisAssetInstance = nullptr;
 	}
 }
 
@@ -397,21 +413,27 @@ void UFlowAsset::FinishNode(UFlowNode* Node)
 	{
 		ActiveNodes.Remove(Node);
 
+		// if graph reached Finish and this asset instance was created by SubGraph node
 		if (Node->GetClass()->IsChildOf(UFlowNode_Finish::StaticClass()))
 		{
-			FinishFlow(true);
+			if (NodeOwningThisAssetInstance.IsValid())
+			{
+				NodeOwningThisAssetInstance.Get()->TriggerFirstOutput(true);
+			}
+			else
+			{
+				FinishFlow(EFlowFinishPolicy::Keep);
+			}
 		}
 	}
 }
 
 void UFlowAsset::ResetNodes()
 {
-#if !UE_BUILD_SHIPPING
 	for (UFlowNode* Node : RecordedNodes)
 	{
 		Node->ResetRecords();
 	}
-#endif
 
 	RecordedNodes.Empty();
 }
@@ -436,11 +458,6 @@ UFlowAsset* UFlowAsset::GetMasterInstance() const
 	return NodeOwningThisAssetInstance.IsValid() ? NodeOwningThisAssetInstance.Get()->GetFlowAsset() : nullptr;
 }
 
-UFlowNode* UFlowAsset::GetNodeInstance(const FGuid Guid) const
-{
-	return Nodes.FindRef(Guid);
-}
-
 FFlowAssetSaveData UFlowAsset::SaveInstance(TArray<FFlowAssetSaveData>& SavedFlowInstances)
 {
 	FFlowAssetSaveData AssetRecord;
@@ -453,7 +470,7 @@ FFlowAssetSaveData UFlowAsset::SaveInstance(TArray<FFlowAssetSaveData>& SavedFlo
 
 	for (const TPair<FGuid, UFlowNode*>& Node : Nodes)
 	{
-		if (Node.Value && Node.Value->ActivationState == EFlowActivationState::Active)
+		if (Node.Value && Node.Value->ActivationState == EFlowNodeState::Active)
 		{
 			if (UFlowNode_SubGraph* SubGraphNode = Cast<UFlowNode_SubGraph>(Node.Value))
 			{
@@ -497,6 +514,19 @@ void UFlowAsset::LoadInstance(const FFlowAssetSaveData& AssetRecord)
 	}
 
 	OnLoad();
+}
+
+void UFlowAsset::OnActivationStateLoaded(UFlowNode* Node)
+{
+	if (Node->ActivationState != EFlowNodeState::NeverActivated)
+	{
+		RecordedNodes.Emplace(Node);
+	}
+
+	if (Node->ActivationState == EFlowNodeState::Active)
+	{
+		ActiveNodes.Emplace(Node);
+	}
 }
 
 void UFlowAsset::OnSave_Implementation()

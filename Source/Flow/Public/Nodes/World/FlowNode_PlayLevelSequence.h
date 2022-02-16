@@ -1,12 +1,13 @@
 #pragma once
 
 #include "EngineDefines.h"
+#include "LevelSequencePlayer.h"
 #include "MovieSceneSequencePlayer.h"
+
 #include "Nodes/FlowNode.h"
 #include "FlowNode_PlayLevelSequence.generated.h"
 
 class UFlowLevelSequencePlayer;
-class ULevelSequence;
 
 DECLARE_MULTICAST_DELEGATE(FFlowNodeLevelSequenceEvent);
 
@@ -21,7 +22,6 @@ UCLASS(NotBlueprintable, meta = (DisplayName = "Play Level Sequence"))
 class FLOW_API UFlowNode_PlayLevelSequence : public UFlowNode
 {
 	GENERATED_UCLASS_BODY()
-
 	friend struct FFlowTrackExecutionToken;
 
 	static FFlowNodeLevelSequenceEvent OnPlaybackStarted;
@@ -30,6 +30,12 @@ class FLOW_API UFlowNode_PlayLevelSequence : public UFlowNode
 	UPROPERTY(EditAnywhere, Category = "Sequence")
 	TSoftObjectPtr<ULevelSequence> Sequence;
 
+	UPROPERTY(EditAnywhere, Category = "Sequence")
+	FMovieSceneSequencePlaybackSettings PlaybackSettings;
+	
+	UPROPERTY(EditAnywhere, Category = "Sequence")
+	FLevelSequenceCameraSettings CameraSettings;
+	
 protected:
 	UPROPERTY()
 	ULevelSequence* LoadedSequence;
@@ -57,11 +63,11 @@ public:
 	virtual void PreloadContent() override;
 	virtual void FlushContent() override;
 
-	void CreatePlayer(const FMovieSceneSequencePlaybackSettings& PlaybackSettings);
+	void CreatePlayer();
 
 protected:
 	virtual void ExecuteInput(const FName& PinName) override;
-	
+
 	virtual void OnSave_Implementation() override;
 	virtual void OnLoad_Implementation() override;
 

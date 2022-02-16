@@ -5,6 +5,7 @@
 #include "Asset/FlowAssetDetails.h"
 #include "Asset/FlowAssetEditor.h"
 #include "Graph/FlowGraphConnectionDrawingPolicy.h"
+#include "Graph/FlowGraphSettings.h"
 #include "LevelEditor/SLevelEditorFlow.h"
 #include "MovieScene/FlowTrackEditor.h"
 #include "Nodes/AssetTypeActions_FlowNodeBlueprint.h"
@@ -13,8 +14,6 @@
 #include "Nodes/Customizations/FlowNode_CustomInputDetails.h"
 #include "Nodes/Customizations/FlowNode_CustomOutputDetails.h"
 #include "Nodes/Customizations/FlowNode_PlayLevelSequenceDetails.h"
-
-#include "Nodes/Customizations/FlowPinCustomization.h"
 
 #include "FlowAsset.h"
 #include "Nodes/Route/FlowNode_CustomInput.h"
@@ -30,7 +29,7 @@
 #include "LevelEditor.h"
 #include "Modules/ModuleManager.h"
 
-#define LOCTEXT_NAMESPACE "FlowEditor"
+#define LOCTEXT_NAMESPACE "FlowEditorModule"
 
 EAssetTypeCategories::Type FFlowEditorModule::FlowAssetCategory = static_cast<EAssetTypeCategories::Type>(0);
 
@@ -43,15 +42,15 @@ void FFlowEditorModule::StartupModule()
 	// register visual utilities
 	FEdGraphUtilities::RegisterVisualPinConnectionFactory(MakeShareable(new FFlowGraphConnectionDrawingPolicyFactory));
 
-	// init menu extensibility
-	FlowAssetExtensibility.Init();
-
 	// add Flow Toolbar
-	if (FLevelEditorModule* LevelEditorModule = FModuleManager::GetModulePtr<FLevelEditorModule>(TEXT("LevelEditor")))
+	if (UFlowGraphSettings::Get()->bShowAssetToolbarAboveLevelEditor)
 	{
-		TSharedPtr<FExtender> MenuExtender = MakeShareable(new FExtender());
-		MenuExtender->AddToolBarExtension("Game", EExtensionHook::After, nullptr, FToolBarExtensionDelegate::CreateRaw(this, &FFlowEditorModule::CreateFlowToolbar));
-		LevelEditorModule->GetToolBarExtensibilityManager()->AddExtender(MenuExtender);
+		if (FLevelEditorModule* LevelEditorModule = FModuleManager::GetModulePtr<FLevelEditorModule>(TEXT("LevelEditor")))
+		{
+			const TSharedPtr<FExtender> MenuExtender = MakeShareable(new FExtender());
+			MenuExtender->AddToolBarExtension("Game", EExtensionHook::After, nullptr, FToolBarExtensionDelegate::CreateRaw(this, &FFlowEditorModule::CreateFlowToolbar));
+			LevelEditorModule->GetToolBarExtensibilityManager()->AddExtender(MenuExtender);
+		}
 	}
 
 	// register Flow sequence track
@@ -84,9 +83,6 @@ void FFlowEditorModule::ShutdownModule()
 		FEdGraphUtilities::UnregisterVisualPinConnectionFactory(FlowGraphConnectionFactory);
 	}
 
-	// reset menu extensibility
-	FlowAssetExtensibility.Reset();
-
 	// unregister track editors
 	ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>("Sequencer");
 	SequencerModule.UnRegisterTrackEditor(FlowTrackCreateEditorHandle);
@@ -109,7 +105,7 @@ void FFlowEditorModule::ShutdownModule()
 void FFlowEditorModule::RegisterAssets()
 {
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	FlowAssetCategory = AssetTools.RegisterAdvancedAssetCategory(FName(TEXT("Flow")), LOCTEXT("FlowAssetCategory", "Flow"));
+	FlowAssetCategory = AssetTools.RegisterAdvancedAssetCategory(FName(TEXT("Flow")), UFlowGraphSettings::Get()->FlowAssetCategoryName);
 
 	const TSharedRef<IAssetTypeActions> FlowAssetActions = MakeShareable(new FAssetTypeActions_FlowAsset());
 	RegisteredAssetActions.Add(FlowAssetActions);
@@ -138,8 +134,6 @@ void FFlowEditorModule::RegisterPropertyCustomizations() const
 {
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
-	PropertyModule.RegisterCustomPropertyTypeLayout("FlowPin", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FFlowPinCustomization::MakeInstance));
-
 	// notify on customization change
 	PropertyModule.NotifyCustomizationModuleChanged();
 }
@@ -153,16 +147,6 @@ void FFlowEditorModule::RegisterCustomClassLayout(const TSubclassOf<UObject> Cla
 		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		PropertyModule.RegisterCustomClassLayout(Class->GetFName(), DetailLayout);
 	}
-}
-
-TSharedPtr<FExtensibilityManager> FFlowEditorModule::GetFlowAssetMenuExtensibilityManager() const
-{
-	return FlowAssetExtensibility.MenuExtensibilityManager;
-}
-
-TSharedPtr<FExtensibilityManager> FFlowEditorModule::GetFlowAssetToolBarExtensibilityManager() const
-{
-	return FlowAssetExtensibility.ToolBarExtensibilityManager;
 }
 
 void FFlowEditorModule::CreateFlowToolbar(FToolBarBuilder& ToolbarBuilder) const

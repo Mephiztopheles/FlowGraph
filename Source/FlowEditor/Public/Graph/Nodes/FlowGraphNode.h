@@ -58,6 +58,7 @@ private:
 	UPROPERTY(Instanced)
 	UFlowNode* FlowNode;
 
+	bool bBlueprintCompilationPending;
 	bool bNeedsFullReconstruction;
 	static bool bFlowAssetsLoaded;
 
@@ -85,6 +86,10 @@ public:
 
 private:
 	void SubscribeToExternalChanges();
+
+	void OnBlueprintPreCompile(UBlueprint* Blueprint);
+	void OnBlueprintCompiled();
+
 	void OnExternalChange();
 
 //////////////////////////////////////////////////////////////////////////
@@ -120,7 +125,8 @@ public:
 
 	// UEdGraphNode
 	virtual void GetNodeContextMenuActions(class UToolMenu* Menu, class UGraphNodeContextMenuContext* Context) const override;
-
+	virtual bool CanUserDeleteNode() const override;
+	virtual bool CanDuplicateNode() const override;
 	virtual TSharedPtr<SGraphNode> CreateVisualWidget() override;
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	virtual FLinearColor GetNodeTitleColor() const override;
@@ -140,7 +146,7 @@ public:
 	UFlowNode* GetInspectedNodeInstance() const;
 
 	// used for highlighting active nodes of the inspected asset instance
-	EFlowActivationState GetActivationState() const;
+	EFlowNodeState GetActivationState() const;
 
 	// information displayed while node is active
 	FString GetStatusString() const;

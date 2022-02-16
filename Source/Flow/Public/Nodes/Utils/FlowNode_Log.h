@@ -3,6 +3,18 @@
 #include "Nodes/FlowNode.h"
 #include "FlowNode_Log.generated.h"
 
+// Variant of ELogVerbosity
+UENUM(BlueprintType)
+enum class EFlowLogVerbosity : uint8
+{
+	Error		UMETA(ToolTip = "Prints a message to console (and log file)"),
+	Warning		UMETA(ToolTip = "Prints a message to console (and log file)"),
+	Display		UMETA(ToolTip = "Prints a message to console (and log file)"),
+	Log			UMETA(ToolTip = "Prints a message to a log file (does not print to console)"),
+	Verbose		UMETA(ToolTip = "Prints a verbose message to a log file (if Verbose logging is enabled for the given category, usually used for detailed logging)"),
+	VeryVerbose	UMETA(ToolTip = "Prints a verbose message to a log file (if VeryVerbose logging is enabled, usually used for detailed logging that would otherwise spam output)"),
+};
+
 /**
  * Adds message to log
  * Optionally shows message on screen
@@ -15,6 +27,9 @@ class FLOW_API UFlowNode_Log : public UFlowNode
 private:
 	UPROPERTY(EditAnywhere, Category = "Flow")
 	FString Message;
+
+	UPROPERTY(EditAnywhere, Category = "Flow")
+	EFlowLogVerbosity Verbosity;
 
 	UPROPERTY(EditAnywhere, Category = "Flow")
 	bool bPrintToScreen;

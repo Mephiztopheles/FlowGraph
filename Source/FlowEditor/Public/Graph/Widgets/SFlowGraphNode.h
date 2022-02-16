@@ -35,6 +35,7 @@ protected:
 
 	// SGraphNode
 	virtual void UpdateGraphNode() override;
+	virtual void UpdateErrorInfo() override;
 	virtual TSharedRef<SWidget> CreateNodeContentArea() override;
 	virtual const FSlateBrush* GetNodeBodyBrush() const override;
 
@@ -42,8 +43,10 @@ protected:
 	virtual void CreateInputSideAddButton(TSharedPtr<SVerticalBox> OutputBox) override;
 	virtual void CreateOutputSideAddButton(TSharedPtr<SVerticalBox> OutputBox) override;
 	virtual FReply OnAddPin() override;
+
+	virtual TSharedPtr<SToolTip> GetComplexTooltip() override;
 	// --
 
-private:
+protected:
 	UFlowGraphNode* FlowGraphNode = nullptr;
 };

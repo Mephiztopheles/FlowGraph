@@ -1,7 +1,9 @@
 #include "Graph/Widgets/SFlowGraphNode.h"
 #include "FlowEditorStyle.h"
+#include "Graph/FlowGraphEditorSettings.h"
 #include "Graph/FlowGraphSettings.h"
 
+#include "FlowAsset.h"
 #include "Nodes/FlowNode.h"
 
 #include "EdGraph/EdGraphPin.h"
@@ -14,16 +16,15 @@
 #include "SCommentBubble.h"
 #include "SGraphNode.h"
 #include "SGraphPin.h"
+#include "SlateOptMacros.h"
 #include "SLevelOfDetailBranchNode.h"
 #include "SNodePanel.h"
-#include "SlateOptMacros.h"
 #include "Styling/SlateColor.h"
 #include "TutorialMetaData.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
-#include "Widgets/SToolTip.h"
 
 #define LOCTEXT_NAMESPACE "SFlowGraphNode"
 
@@ -78,12 +79,14 @@ const FSlateBrush* SFlowGraphNode::GetShadowBrush(bool bSelected) const
 	{
 		switch (FlowGraphNode->GetActivationState())
 		{
-			case EFlowActivationState::NeverActivated:
+			case EFlowNodeState::NeverActivated:
 				return SGraphNode::GetShadowBrush(bSelected);
-			case EFlowActivationState::Active:
+			case EFlowNodeState::Active:
 				return FFlowEditorStyle::Get()->GetBrush(TEXT("Flow.Node.ActiveShadow"));
-			case EFlowActivationState::WasActive:
+			case EFlowNodeState::Completed:
+			case EFlowNodeState::Aborted:
 				return FFlowEditorStyle::Get()->GetBrush(TEXT("Flow.Node.WasActiveShadow"));
+			default: ;
 		}
 	}
 
@@ -245,20 +248,13 @@ void SFlowGraphNode::UpdateGraphNode()
 				DefaultTitleAreaWidget
 			];
 
-
-	if (!SWidget::GetToolTip().IsValid())
-	{
-		const TSharedRef<SToolTip> DefaultToolTip = IDocumentation::Get()->CreateToolTip(TAttribute<FText>(this, &SGraphNode::GetNodeTooltip), nullptr, GraphNode->GetDocumentationLink(), GraphNode->GetDocumentationExcerptName());
-		SetToolTip(DefaultToolTip);
-	}
-
 	// Setup a meta tag for this node
 	FGraphNodeMetaData TagMeta(TEXT("FlowGraphNode"));
 	PopulateMetaTag(&TagMeta);
 
 	this->ContentScale.Bind(this, &SGraphNode::GetContentScale);
 
-	TSharedPtr<SVerticalBox> InnerVerticalBox = SNew(SVerticalBox)
+	const TSharedPtr<SVerticalBox> InnerVerticalBox = SNew(SVerticalBox)
 		+ SVerticalBox::Slot()
 			.AutoHeight()
 			.HAlign(HAlign_Fill)
@@ -355,6 +351,21 @@ void SFlowGraphNode::UpdateGraphNode()
 	CreateAdvancedViewArrow(InnerVerticalBox);
 }
 
+void SFlowGraphNode::UpdateErrorInfo()
+{
+	if (const UFlowNode* FlowNode = FlowGraphNode->GetFlowNode())
+	{
+		if (FlowNode->GetClass()->HasAnyClassFlags(CLASS_Deprecated) || FlowNode->bNodeDeprecated)
+		{
+			ErrorMsg = FlowNode->ReplacedBy ? FString::Printf(TEXT(" REPLACED BY: %s "), *FlowNode->ReplacedBy->GetName()) : FString(TEXT(" DEPRECATED! "));
+			ErrorColor = FEditorStyle::GetColor("ErrorReporting.WarningBackgroundColor");
+			return;
+		}
+	}
+
+	SGraphNode::UpdateErrorInfo();
+}
+
 TSharedRef<SWidget> SFlowGraphNode::CreateNodeContentArea()
 {
 	return SNew(SBorder)
@@ -385,7 +396,7 @@ const FSlateBrush* SFlowGraphNode::GetNodeBodyBrush() const
 
 void SFlowGraphNode::CreateStandardPinWidget(UEdGraphPin* Pin)
 {
-	TSharedPtr<SGraphPin> NewPin = SNew(SFlowGraphPinExec, Pin);
+	const TSharedPtr<SGraphPin> NewPin = SNew(SFlowGraphPinExec, Pin);
 
 	if (!UFlowGraphSettings::Get()->bShowDefaultPinNames && FlowGraphNode->GetFlowNode())
 	{
@@ -466,6 +477,11 @@ FReply SFlowGraphNode::OnAddPin()
 	}
 
 	return FReply::Handled();
+}
+
+TSharedPtr<SToolTip> SFlowGraphNode::GetComplexTooltip()
+{
+	return IDocumentation::Get()->CreateToolTip(TAttribute<FText>(this, &SGraphNode::GetNodeTooltip), nullptr, GraphNode->GetDocumentationLink(), GraphNode->GetDocumentationExcerptName());
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -3,6 +3,7 @@
 #include "Asset/FlowDebugger.h"
 #include "FlowEditorCommands.h"
 #include "Graph/FlowGraph.h"
+#include "Graph/FlowGraphEditorSettings.h"
 #include "Graph/FlowGraphSchema.h"
 #include "Graph/FlowGraphSettings.h"
 #include "Graph/Widgets/SFlowGraphNode.h"
@@ -10,7 +11,6 @@
 #include "FlowAsset.h"
 #include "Nodes/FlowNode.h"
 
-#include "AssetRegistryModule.h"
 #include "Developer/ToolMenus/Public/ToolMenus.h"
 #include "EdGraph/EdGraphSchema.h"
 #include "EdGraphSchema_K2.h"
@@ -19,7 +19,6 @@
 #include "Framework/Commands/GenericCommands.h"
 #include "GraphEditorActions.h"
 #include "Kismet2/KismetEditorUtilities.h"
-#include "Modules/ModuleManager.h"
 #include "ScopedTransaction.h"
 #include "SourceCodeNavigation.h"
 #include "Textures/SlateIcon.h"
@@ -94,14 +93,13 @@ void FFlowBreakpoint::ToggleBreakpoint()
 	}
 }
 
-bool UFlowGraphNode::bFlowAssetsLoaded = false;
-
 //////////////////////////////////////////////////////////////////////////
 // Flow Graph Node
 
 UFlowGraphNode::UFlowGraphNode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, FlowNode(nullptr)
+	, bBlueprintCompilationPending(false)
 	, bNeedsFullReconstruction(false)
 {
 	OrphanedPinSaveMode = ESaveOrphanPinMode::SaveAll;
@@ -116,9 +114,9 @@ UFlowNode* UFlowGraphNode::GetFlowNode() const
 {
 	if (FlowNode)
 	{
-		if (UFlowAsset* InspectedInstance = FlowNode->GetFlowAsset()->GetInspectedInstance())
+		if (const UFlowAsset* InspectedInstance = FlowNode->GetFlowAsset()->GetInspectedInstance())
 		{
-			return InspectedInstance->GetNodeInstance(FlowNode->GetGuid());
+			return InspectedInstance->GetNode(FlowNode->GetGuid());
 		}
 
 		return FlowNode;
@@ -135,24 +133,6 @@ void UFlowGraphNode::PostLoad()
 	{
 		FlowNode->FixNode(this); // fix already created nodes
 		SubscribeToExternalChanges();
-	}
-
-	// todo: verify if we still need this workaround
-	// without this reconstructing UFlowNode_SubGraph pins wouldn't work well
-	if (bFlowAssetsLoaded == false)
-	{
-		TArray<FAssetData> FlowAssets;
-
-		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(AssetRegistryConstants::ModuleName);
-		AssetRegistryModule.Get().GetAssetsByClass(UFlowAsset::StaticClass()->GetFName(), FlowAssets, true);
-
-		for (FAssetData const& Asset : FlowAssets)
-		{
-			const FString AssetPath = Asset.ObjectPath.ToString();
-			StaticLoadObject(Asset.GetClass(), nullptr, *AssetPath);
-		}
-
-		bFlowAssetsLoaded = true;
 	}
 
 	ReconstructNode();
@@ -225,10 +205,28 @@ void UFlowGraphNode::SubscribeToExternalChanges()
 		// blueprint nodes
 		if (FlowNode->GetClass()->ClassGeneratedBy && GEditor)
 		{
-			GEditor->OnBlueprintCompiled().AddUObject(this, &UFlowGraphNode::OnExternalChange);
-			GEditor->OnClassPackageLoadedOrUnloaded().AddUObject(this, &UFlowGraphNode::OnExternalChange);
+			GEditor->OnBlueprintPreCompile().AddUObject(this, &UFlowGraphNode::OnBlueprintPreCompile);
+			GEditor->OnBlueprintCompiled().AddUObject(this, &UFlowGraphNode::OnBlueprintCompiled);
 		}
 	}
+}
+
+void UFlowGraphNode::OnBlueprintPreCompile(UBlueprint* Blueprint)
+{
+	if (Blueprint && Blueprint == FlowNode->GetClass()->ClassGeneratedBy)
+	{
+		bBlueprintCompilationPending = true;
+	}
+}
+
+void UFlowGraphNode::OnBlueprintCompiled()
+{
+	if (bBlueprintCompilationPending)
+	{
+		OnExternalChange();
+	}
+
+	bBlueprintCompilationPending = false;
 }
 
 void UFlowGraphNode::OnExternalChange()
@@ -375,7 +373,7 @@ void UFlowGraphNode::RewireOldPinsToNewPins(TArray<UEdGraphPin*>& InOldPins)
 	// NOTE: we iterate backwards through the list because ReconstructSinglePin()
 	//       destroys pins as we go along (clearing out parent pointers, etc.); 
 	//       we need the parent pin chain intact for DoPinsMatchForReconstruction();              
-	//       we want to destroy old pins from the split children (leafs) up, so 
+	//       we want to destroy old pins from the split children (leaves) up, so 
 	//       we do this since split child pins are ordered later in the list 
 	//       (after their parents) 
 	for (int32 OldPinIndex = InOldPins.Num() - 1; OldPinIndex >= 0; --OldPinIndex)
@@ -533,6 +531,16 @@ void UFlowGraphNode::GetNodeContextMenuActions(class UToolMenu* Menu, class UGra
 	}
 }
 
+bool UFlowGraphNode::CanUserDeleteNode() const
+{
+	return FlowNode ? FlowNode->bCanDelete : Super::CanUserDeleteNode();
+}
+
+bool UFlowGraphNode::CanDuplicateNode() const
+{
+	return FlowNode ? FlowNode->bCanDuplicate : Super::CanDuplicateNode();
+}
+
 TSharedPtr<SGraphNode> UFlowGraphNode::CreateVisualWidget()
 {
 	return SNew(SFlowGraphNode, this);
@@ -542,9 +550,29 @@ FText UFlowGraphNode::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
 	if (FlowNode)
 	{
+		if (UFlowGraphEditorSettings::Get()->bShowNodeClass)
+		{
+			FString CleanAssetName;
+			if (FlowNode->GetClass()->ClassGeneratedBy)
+			{
+				FlowNode->GetClass()->GetPathName(nullptr, CleanAssetName);
+				const int32 SubStringIdx = CleanAssetName.Find(".", ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+				CleanAssetName.LeftInline(SubStringIdx);
+			}
+			else
+			{
+				CleanAssetName = FlowNode->GetClass()->GetName();
+			}
+
+			FFormatNamedArguments Args;
+			Args.Add(TEXT("NodeTitle"), FlowNode->GetNodeTitle());
+			Args.Add(TEXT("AssetName"), FText::FromString(CleanAssetName));
+			return FText::Format(INVTEXT("{NodeTitle}\n{AssetName}"), Args);
+		}
+
 		return FlowNode->GetNodeTitle();
 	}
-
+	
 	return Super::GetNodeTitle(TitleType);
 }
 
@@ -553,12 +581,17 @@ FLinearColor UFlowGraphNode::GetNodeTitleColor() const
 	if (FlowNode)
 	{
 		FLinearColor DynamicColor;
-		if (FlowNode->GetNodeTitleColor(DynamicColor))
+		if (FlowNode->GetDynamicTitleColor(DynamicColor))
 		{
 			return DynamicColor;
 		}
 
-		if (const FLinearColor* StyleColor = UFlowGraphSettings::Get()->NodeTitleColors.Find(FlowNode->GetNodeStyle()))
+		UFlowGraphSettings* GraphSettings = UFlowGraphSettings::Get();
+		if (const FLinearColor* NodeSpecificColor = GraphSettings->NodeSpecificColors.Find(FlowNode->GetClass()))
+		{
+			return *NodeSpecificColor;
+		}
+		if (const FLinearColor* StyleColor = GraphSettings->NodeTitleColors.Find(FlowNode->GetNodeStyle()))
 		{
 			return *StyleColor;
 		}
@@ -596,24 +629,24 @@ UFlowNode* UFlowGraphNode::GetInspectedNodeInstance() const
 	return FlowNode ? FlowNode->GetInspectedInstance() : nullptr;
 }
 
-EFlowActivationState UFlowGraphNode::GetActivationState() const
+EFlowNodeState UFlowGraphNode::GetActivationState() const
 {
 	if (FlowNode)
 	{
-		if (UFlowNode* NodeInstance = FlowNode->GetInspectedInstance())
+		if (const UFlowNode* NodeInstance = FlowNode->GetInspectedInstance())
 		{
 			return NodeInstance->GetActivationState();
 		}
 	}
 
-	return EFlowActivationState::NeverActivated;
+	return EFlowNodeState::NeverActivated;
 }
 
 FString UFlowGraphNode::GetStatusString() const
 {
 	if (FlowNode)
 	{
-		if (UFlowNode* NodeInstance = FlowNode->GetInspectedInstance())
+		if (const UFlowNode* NodeInstance = FlowNode->GetInspectedInstance())
 		{
 			return NodeInstance->GetStatusString();
 		}
@@ -626,7 +659,7 @@ bool UFlowGraphNode::IsContentPreloaded() const
 {
 	if (FlowNode)
 	{
-		if (UFlowNode* NodeInstance = FlowNode->GetInspectedInstance())
+		if (const UFlowNode* NodeInstance = FlowNode->GetInspectedInstance())
 		{
 			return NodeInstance->bPreloaded;
 		}
@@ -841,7 +874,7 @@ void UFlowGraphNode::GetPinHoverText(const UEdGraphPin& Pin, FString& HoverTextO
 	// add information on pin activations
 	if (GEditor->PlayWorld)
 	{
-		if (UFlowNode* InspectedNodeInstance = GetInspectedNodeInstance())
+		if (const UFlowNode* InspectedNodeInstance = GetInspectedNodeInstance())
 		{
 			if (!HoverTextOut.IsEmpty())
 			{

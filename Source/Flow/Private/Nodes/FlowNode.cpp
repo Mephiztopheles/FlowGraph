@@ -6,27 +6,31 @@
 #include "FlowTypes.h"
 
 #include "Engine/Engine.h"
+#include "Engine/ViewportStatsSubsystem.h"
 #include "Engine/World.h"
 #include "Misc/App.h"
 #include "Misc/Paths.h"
+#include "Serialization/MemoryReader.h"
+#include "Serialization/MemoryWriter.h"
 
 FFlowPin UFlowNode::DefaultInputPin(TEXT("In"));
 FFlowPin UFlowNode::DefaultOutputPin(TEXT("Out"));
 
-FString UFlowNode::MissingIdentityTag = TEXT("Missing Identity Tag!");
-FString UFlowNode::MissingNotifyTag = TEXT("Missing Notify Tag!");
-FString UFlowNode::MissingClass = TEXT("Missing class!");
-FString UFlowNode::NoActorsFound = TEXT("No actors found!");
+FString UFlowNode::MissingIdentityTag = TEXT("Missing Identity Tag");
+FString UFlowNode::MissingNotifyTag = TEXT("Missing Notify Tag");
+FString UFlowNode::MissingClass = TEXT("Missing class");
+FString UFlowNode::NoActorsFound = TEXT("No actors found");
 
 UFlowNode::UFlowNode(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 #if WITH_EDITOR
 	, GraphNode(nullptr)
+	, bCanDelete(true)
+	, bCanDuplicate(true)
+	, bNodeDeprecated(false)
 #endif
 	, bPreloaded(false)
-#if !UE_BUILD_SHIPPING
-	, ActivationState(EFlowActivationState::NeverActivated)
-#endif
+	, ActivationState(EFlowNodeState::NeverActivated)
 {
 #if WITH_EDITOR
 	Category = TEXT("Uncategorized");
@@ -308,16 +312,15 @@ void UFlowNode::FlushContent()
 
 void UFlowNode::TriggerInput(const FName& PinName)
 {
-	ensureAlways(InputPins.Num() > 0);
-
-#if !UE_BUILD_SHIPPING
 	if (InputPins.Contains(PinName))
 	{
+		ActivationState = EFlowNodeState::Active;
+
+#if !UE_BUILD_SHIPPING
 		// record for debugging
 		TArray<FPinRecord>& Records = InputRecords.FindOrAdd(PinName);
 		Records.Add(FPinRecord(FApp::GetCurrentTime()));
-
-		ActivationState = EFlowActivationState::Active;
+#endif // UE_BUILD_SHIPPING
 
 #if WITH_EDITOR
 		if (GetWorld()->WorldType == EWorldType::PIE && UFlowAsset::GetFlowGraphInterface().IsValid())
@@ -328,9 +331,11 @@ void UFlowNode::TriggerInput(const FName& PinName)
 	}
 	else
 	{
+#if !UE_BUILD_SHIPPING
 		LogError(FString::Printf(TEXT("Input Pin name %s invalid"), *PinName.ToString()));
-	}
 #endif // UE_BUILD_SHIPPING
+		return;
+	}
 
 	ExecuteInput(PinName);
 }
@@ -350,7 +355,11 @@ void UFlowNode::TriggerFirstOutput(const bool bFinish)
 
 void UFlowNode::TriggerOutput(const FName& PinName, const bool bFinish /*= false*/)
 {
-	ensureAlways(OutputPins.Num() > 0);
+	// clean up node, if needed
+	if (bFinish)
+	{
+		Finish();
+	}
 
 #if !UE_BUILD_SHIPPING
 	if (OutputPins.Contains(PinName))
@@ -371,12 +380,6 @@ void UFlowNode::TriggerOutput(const FName& PinName, const bool bFinish /*= false
 		LogError(FString::Printf(TEXT("Output Pin name %s invalid"), *PinName.ToString()));
 	}
 #endif // UE_BUILD_SHIPPING
-
-	// clean up node, if needed
-	if (bFinish)
-	{
-		Finish();
-	}
 
 	// call the next node
 	if (OutputPins.Contains(PinName) && Connections.Contains(PinName))
@@ -409,9 +412,14 @@ void UFlowNode::Finish()
 
 void UFlowNode::Deactivate()
 {
-#if !UE_BUILD_SHIPPING
-	ActivationState = EFlowActivationState::WasActive;
-#endif
+	if (GetFlowAsset()->FinishPolicy == EFlowFinishPolicy::Abort)
+	{
+		ActivationState = EFlowNodeState::Aborted;
+	}
+	else
+	{
+		ActivationState = EFlowNodeState::Completed;
+	}
 
 	Cleanup();
 }
@@ -426,21 +434,22 @@ void UFlowNode::ForceFinishNode()
 	K2_ForceFinishNode();
 }
 
-#if !UE_BUILD_SHIPPING
 void UFlowNode::ResetRecords()
 {
+	ActivationState = EFlowNodeState::NeverActivated;
+
+#if !UE_BUILD_SHIPPING
 	InputRecords.Empty();
 	OutputRecords.Empty();
-	ActivationState = EFlowActivationState::NeverActivated;
-}
 #endif
+}
 
 #if WITH_EDITOR
 UFlowNode* UFlowNode::GetInspectedInstance() const
 {
 	if (const UFlowAsset* FlowInstance = GetFlowAsset()->GetInspectedInstance())
 	{
-		return FlowInstance->GetNodeInstance(GetGuid());
+		return FlowInstance->GetNode(GetGuid());
 	}
 
 	return nullptr;
@@ -546,12 +555,31 @@ FString UFlowNode::GetProgressAsString(float Value)
 	return TempString;
 }
 
-void UFlowNode::LogError(FString Message)
+void UFlowNode::LogError(FString Message, const EFlowOnScreenMessageType OnScreenMessageType) const
 {
 	const FString TemplatePath = GetFlowAsset()->TemplateAsset->GetPathName();
 	Message += TEXT(" in node ") + GetName() + TEXT(", asset ") + FPaths::GetPath(TemplatePath) + TEXT("/") + FPaths::GetBaseFilename(TemplatePath);
 
-	GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, Message);
+	if (OnScreenMessageType == EFlowOnScreenMessageType::Permanent)
+	{
+		if (GetWorld())
+		{
+			if (UViewportStatsSubsystem* StatsSubsystem = GetWorld()->GetSubsystem<UViewportStatsSubsystem>())
+			{
+				StatsSubsystem->AddDisplayDelegate([this, Message](FText& OutText, FLinearColor& OutColor)
+				{
+					OutText = FText::FromString(Message);
+					OutColor = FLinearColor::Red;
+					return IsValid(this) && ActivationState != EFlowNodeState::NeverActivated;
+				});
+			}
+		}
+	}
+	else
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, Message);
+	}
+
 	UE_LOG(LogFlow, Error, TEXT("%s"), *Message);
 }
 
@@ -570,6 +598,11 @@ void UFlowNode::LoadInstance(const FFlowNodeSaveData& NodeRecord)
 	FMemoryReader MemoryReader(NodeRecord.NodeData, true);
 	FFlowArchive Ar(MemoryReader);
 	Serialize(Ar);
+
+	if (UFlowAsset* FlowAsset = GetFlowAsset())
+	{
+		FlowAsset->OnActivationStateLoaded(this);
+	}
 
 	OnLoad();
 }
