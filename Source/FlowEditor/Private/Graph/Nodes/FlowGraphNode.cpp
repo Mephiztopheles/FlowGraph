@@ -662,6 +662,23 @@ FString UFlowGraphNode::GetStatusString() const
 	return FString();
 }
 
+FLinearColor UFlowGraphNode::GetStatusBackgroundColor() const
+{
+	if (FlowNode)
+	{
+		if (const UFlowNode* NodeInstance = FlowNode->GetInspectedInstance())
+		{
+			FLinearColor ObtainedColor;
+			if (NodeInstance->GetStatusBackgroundColor(ObtainedColor))
+			{
+				return ObtainedColor;
+			}
+		}
+	}
+
+	return UFlowGraphSettings::Get()->NodeStatusBackground;
+}
+
 bool UFlowGraphNode::IsContentPreloaded() const
 {
 	if (FlowNode)
@@ -726,6 +743,13 @@ void UFlowGraphNode::CreateInputPin(const FFlowPin& FlowPin, const int32 Index /
 	const FEdGraphPinType PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_Exec, FName(NAME_None), nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
 	UEdGraphPin* NewPin = CreatePin(EGPD_Input, PinType, FlowPin.PinName, Index);
 	check(NewPin);
+
+	if (!FlowPin.PinFriendlyName.IsEmpty())
+	{
+		NewPin->bAllowFriendlyName = true;
+		NewPin->PinFriendlyName = FlowPin.PinFriendlyName;
+	}
+	
 	NewPin->PinToolTip = FlowPin.PinToolTip;
 
 	InputPins.Emplace(NewPin);
@@ -741,6 +765,13 @@ void UFlowGraphNode::CreateOutputPin(const FFlowPin& FlowPin, const int32 Index 
 	const FEdGraphPinType PinType = FEdGraphPinType(UEdGraphSchema_K2::PC_Exec, FName(NAME_None), nullptr, EPinContainerType::None, false, FEdGraphTerminalType());
 	UEdGraphPin* NewPin = CreatePin(EGPD_Output, PinType, FlowPin.PinName, Index);
 	check(NewPin);
+
+	if (!FlowPin.PinFriendlyName.IsEmpty())
+	{
+		NewPin->bAllowFriendlyName = true;
+		NewPin->PinFriendlyName = FlowPin.PinFriendlyName;
+	}
+
 	NewPin->PinToolTip = FlowPin.PinToolTip;
 
 	OutputPins.Emplace(NewPin);

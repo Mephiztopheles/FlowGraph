@@ -413,6 +413,11 @@ void UFlowNode::TriggerOutput(const FName& PinName, const bool bFinish /*= false
 	}
 }
 
+void UFlowNode::TriggerOutputPin(const FFlowOutputPinHandle Pin, const bool bFinish, const bool bForcedActivation)
+{
+	TriggerOutput(Pin.PinName, bFinish, bForcedActivation);
+}
+
 void UFlowNode::TriggerOutput(const FString& PinName, const bool bFinish)
 {
 	TriggerOutput(*PinName, bFinish);
@@ -505,6 +510,11 @@ TArray<FPinRecord> UFlowNode::GetPinRecords(const FName& PinName, const EEdGraph
 FString UFlowNode::GetStatusString() const
 {
 	return K2_GetStatusString();
+}
+
+bool UFlowNode::GetStatusBackgroundColor(FLinearColor& OutColor) const
+{
+	return K2_GetStatusBackgroundColor(OutColor);
 }
 
 FString UFlowNode::GetAssetPath()
