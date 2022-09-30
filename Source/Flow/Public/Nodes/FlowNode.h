@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "EdGraph/EdGraphNode.h"
 #include "Engine/StreamableManager.h"
 #include "GameplayTagContainer.h"
@@ -31,6 +30,8 @@ class FLOW_API UFlowNode : public UObject, public IVisualLoggerDebugSnapshotInte
 	friend class UFlowAsset;
 	friend class UFlowGraphNode;
 	friend class UFlowGraphSchema;
+	friend class SFlowInputPinHandle;
+	friend class SFlowOutputPinHandle;
 
 //////////////////////////////////////////////////////////////////////////
 // Node
@@ -41,6 +42,9 @@ private:
 
 #if WITH_EDITORONLY_DATA
 protected:
+	TArray<TSubclassOf<UFlowAsset>> AllowedAssetClasses;
+	TArray<TSubclassOf<UFlowAsset>> DeniedAssetClasses;
+	
 	UPROPERTY()
 	FString Category;
 
@@ -202,6 +206,9 @@ protected:
 
 	UPROPERTY(SaveGame)
 	EFlowNodeState ActivationState;
+
+public:	
+	EFlowNodeState GetActivationState() const { return ActivationState; }
 	
 #if !UE_BUILD_SHIPPING
 private:
@@ -253,13 +260,15 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "FlowNode")
 	void TriggerFirstOutput(const bool bFinish);
 
-	// Trigger Output Pin
 	UFUNCTION(BlueprintCallable, Category = "FlowNode", meta = (HidePin = "bForcedActivation"))
 	void TriggerOutput(const FName& PinName, const bool bFinish = false, const bool bForcedActivation = false);
 
 	void TriggerOutput(const FString& PinName, const bool bFinish = false);
 	void TriggerOutput(const FText& PinName, const bool bFinish = false);
 	void TriggerOutput(const TCHAR* PinName, const bool bFinish = false);
+
+	UFUNCTION(BlueprintCallable, Category = "FlowNode", meta = (HidePin = "bForcedActivation"))
+	void TriggerOutputPin(const FFlowOutputPinHandle Pin, const bool bFinish = false, const bool bForcedActivation = false);
 
 	// Finish execution of node, it will call Cleanup
 	UFUNCTION(BlueprintCallable, Category = "FlowNode")
@@ -289,13 +298,13 @@ private:
 #if WITH_EDITOR
 public:
 	UFlowNode* GetInspectedInstance() const;
-	EFlowNodeState GetActivationState() const { return ActivationState; }
 
 	TMap<uint8, FPinRecord> GetWireRecords() const;
 	TArray<FPinRecord> GetPinRecords(const FName& PinName, const EEdGraphPinDirection PinDirection) const;
 
 	// Information displayed while node is working - displayed over node as NodeInfoPopup
 	virtual FString GetStatusString() const;
+	virtual bool GetStatusBackgroundColor(FLinearColor& OutColor) const;
 
 	virtual FString GetAssetPath();
 	virtual UObject* GetAssetToEdit();
@@ -306,6 +315,9 @@ protected:
 	// Information displayed while node is working - displayed over node as NodeInfoPopup
 	UFUNCTION(BlueprintImplementableEvent, Category = "FlowNode", meta = (DisplayName = "GetStatusString"))
 	FString K2_GetStatusString() const;
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "FlowNode", meta = (DisplayName = "GetStatusBackgroundColor"))
+	bool K2_GetStatusBackgroundColor(FLinearColor& OutColor) const;
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "FlowNode", meta = (DisplayName = "GetAssetPath"))
 	FString K2_GetAssetPath();

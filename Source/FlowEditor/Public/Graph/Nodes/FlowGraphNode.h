@@ -15,7 +15,7 @@ class UEdGraphSchema;
 class UFlowNode;
 
 USTRUCT()
-struct FFlowBreakpoint
+struct FLOWEDITOR_API FFlowBreakpoint
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -152,6 +152,7 @@ public:
 
 	// Information displayed while node is active
 	FString GetStatusString() const;
+	FLinearColor GetStatusBackgroundColor() const;
 
 	// Check this to display information while node is preloaded
 	bool IsContentPreloaded() const;
