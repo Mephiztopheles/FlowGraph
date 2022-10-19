@@ -5,6 +5,8 @@
 #include "AssetTypeCategories.h"
 #include "IAssetTypeActions.h"
 #include "Modules/ModuleInterface.h"
+#include "PropertyEditorDelegates.h"
+#include "Toolkits/IToolkit.h"
 
 class FSlateStyleSet;
 struct FGraphPanelPinConnectionFactory;

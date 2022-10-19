@@ -4,6 +4,7 @@
 
 #include "FlowSave.h"
 #include "FlowTypes.h"
+#include "Templates/SubclassOf.h"
 #include "FlowAsset.generated.h"
 
 class UFlowNode;
@@ -259,7 +260,7 @@ public:
 	FName GetDisplayName() const;
 
 	UFlowNode_SubGraph* GetNodeOwningThisAssetInstance() const;
-	UFlowAsset* GetMasterInstance() const;
+	UFlowAsset* GetParentInstance() const;
 
 	// Are there any active nodes?
 	UFUNCTION(BlueprintPure, Category = "Flow")

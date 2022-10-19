@@ -111,17 +111,17 @@ void FFlowAssetEditor::RegisterTabSpawners(const TSharedRef<class FTabManager>& 
 	InTabManager->RegisterTabSpawner(GraphTab, FOnSpawnTab::CreateSP(this, &FFlowAssetEditor::SpawnTab_GraphCanvas))
 				.SetDisplayName(LOCTEXT("GraphTab", "Viewport"))
 				.SetGroup(WorkspaceMenuCategoryRef)
-				.SetIcon(FSlateIcon(FEditorStyle::GetStyleSetName(), "GraphEditor.EventGraph_16x"));
+				.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.EventGraph_16x"));
 
 	InTabManager->RegisterTabSpawner(DetailsTab, FOnSpawnTab::CreateSP(this, &FFlowAssetEditor::SpawnTab_Details))
 				.SetDisplayName(LOCTEXT("DetailsTab", "Details"))
 				.SetGroup(WorkspaceMenuCategoryRef)
-				.SetIcon(FSlateIcon(FEditorStyle::GetStyleSetName(), "LevelEditor.Tabs.Details"));
+				.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 
 	InTabManager->RegisterTabSpawner(PaletteTab, FOnSpawnTab::CreateSP(this, &FFlowAssetEditor::SpawnTab_Palette))
 				.SetDisplayName(LOCTEXT("PaletteTab", "Palette"))
 				.SetGroup(WorkspaceMenuCategoryRef)
-				.SetIcon(FSlateIcon(FEditorStyle::GetStyleSetName(), "Kismet.Tabs.Palette"));
+				.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Kismet.Tabs.Palette"));
 }
 
 void FFlowAssetEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
@@ -250,11 +250,11 @@ void FFlowAssetEditor::BindToolbarCommands()
 	ToolkitCommands->Append(FPlayWorldCommands::GlobalPlayWorldActions.ToSharedRef());
 
 	// Debugging
-	ToolkitCommands->MapAction(ToolbarCommands.GoToMasterInstance,
-		FExecuteAction::CreateSP(this, &FFlowAssetEditor::GoToMasterInstance),
-		FCanExecuteAction::CreateSP(this, &FFlowAssetEditor::CanGoToMasterInstance),
+	ToolkitCommands->MapAction(ToolbarCommands.GoToParentInstance,
+		FExecuteAction::CreateSP(this, &FFlowAssetEditor::GoToParentInstance),
+		FCanExecuteAction::CreateSP(this, &FFlowAssetEditor::CanGoToParentInstance),
 		FIsActionChecked(),
-		FIsActionButtonVisible::CreateStatic(&FFlowAssetEditor::IsPIE));
+		FIsActionButtonVisible::CreateSP(this, &FFlowAssetEditor::CanGoToParentInstance));
 }
 
 void FFlowAssetEditor::RefreshAsset()
@@ -268,15 +268,15 @@ void FFlowAssetEditor::RefreshAsset()
 	}
 }
 
-void FFlowAssetEditor::GoToMasterInstance()
+void FFlowAssetEditor::GoToParentInstance()
 {
-	const UFlowAsset* AssetThatInstancedThisAsset = FlowAsset->GetInspectedInstance()->GetMasterInstance();
+	const UFlowAsset* AssetThatInstancedThisAsset = FlowAsset->GetInspectedInstance()->GetParentInstance();
 
 	GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(AssetThatInstancedThisAsset->GetTemplateAsset());
 	AssetThatInstancedThisAsset->GetTemplateAsset()->SetInspectedInstance(AssetThatInstancedThisAsset->GetDisplayName());
 }
 
-bool FFlowAssetEditor::CanGoToMasterInstance()
+bool FFlowAssetEditor::CanGoToParentInstance()
 {
 	return FlowAsset->GetInspectedInstance() && FlowAsset->GetInspectedInstance()->GetNodeOwningThisAssetInstance() != nullptr;
 }

@@ -11,11 +11,11 @@
 
 #include "FlowAsset.h"
 #include "Nodes/FlowNode.h"
+#include "Nodes/FlowNodeBlueprint.h"
 #include "Nodes/Route/FlowNode_Start.h"
 #include "Nodes/Route/FlowNode_Reroute.h"
 
-#include "AssetRegistryModule.h"
-#include "Developer/ToolMenus/Public/ToolMenus.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "EdGraph/EdGraph.h"
 #include "ScopedTransaction.h"
 
@@ -436,8 +436,8 @@ void UFlowGraphSchema::GatherFlowNodes()
 	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(AssetRegistryConstants::ModuleName);
 
 	FARFilter Filter;
-	Filter.ClassNames.Add(UBlueprint::StaticClass()->GetFName());
-	Filter.ClassNames.Add(UBlueprintGeneratedClass::StaticClass()->GetFName());
+	Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+	Filter.ClassPaths.Add(UBlueprintGeneratedClass::StaticClass()->GetClassPathName());
 	Filter.bRecursiveClasses = true;
 
 	TArray<FAssetData> FoundAssets;
@@ -470,30 +470,13 @@ void UFlowGraphSchema::AddAsset(const FAssetData& AssetData, const bool bBatch)
 			return;
 		}
 
-		TArray<FName> AncestorClassNames;
-		AssetRegistryModule.Get().GetAncestorClassNames(AssetData.AssetClass, AncestorClassNames);
-		if (!AncestorClassNames.Contains(UBlueprintCore::StaticClass()->GetFName()))
+		if (AssetData.GetClass()->IsChildOf(UFlowNodeBlueprint::StaticClass()))
 		{
-			return;
-		}
+			BlueprintFlowNodes.Emplace(AssetData.PackageName, AssetData);
 
-		FString NativeParentClassPath;
-		AssetData.GetTagValue(FBlueprintTags::NativeParentClassPath, NativeParentClassPath);
-		if (!NativeParentClassPath.IsEmpty())
-		{
-			UObject* Outer = nullptr;
-			ResolveName(Outer, NativeParentClassPath, false, false);
-			const UClass* NativeParentClass = FindObject<UClass>(ANY_PACKAGE, *NativeParentClassPath);
-
-			// accept only Flow Node blueprints
-			if (NativeParentClass && NativeParentClass->IsChildOf(UFlowNode::StaticClass()))
+			if (!bBatch)
 			{
-				BlueprintFlowNodes.Emplace(AssetData.PackageName, AssetData);
-
-				if (!bBatch)
-				{
-					OnNodeListChanged.Broadcast();
-				}
+				OnNodeListChanged.Broadcast();
 			}
 		}
 	}

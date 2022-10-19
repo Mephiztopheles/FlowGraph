@@ -7,7 +7,6 @@
 #include "Nodes/FlowNode.h"
 #include "Nodes/Route/FlowNode_CustomInput.h"
 #include "Nodes/Route/FlowNode_Start.h"
-#include "Nodes/Route/FlowNode_Finish.h"
 #include "Nodes/Route/FlowNode_SubGraph.h"
 
 #include "Engine/World.h"
@@ -432,7 +431,7 @@ void UFlowAsset::FinishNode(UFlowNode* Node)
 		ActiveNodes.Remove(Node);
 
 		// if graph reached Finish and this asset instance was created by SubGraph node
-		if (Node->GetClass()->IsChildOf(UFlowNode_Finish::StaticClass()))
+		if (Node->CanFinishGraph())
 		{
 			if (NodeOwningThisAssetInstance.IsValid())
 			{
@@ -471,7 +470,7 @@ UFlowNode_SubGraph* UFlowAsset::GetNodeOwningThisAssetInstance() const
 	return NodeOwningThisAssetInstance.Get();
 }
 
-UFlowAsset* UFlowAsset::GetMasterInstance() const
+UFlowAsset* UFlowAsset::GetParentInstance() const
 {
 	return NodeOwningThisAssetInstance.IsValid() ? NodeOwningThisAssetInstance.Get()->GetFlowAsset() : nullptr;
 }
