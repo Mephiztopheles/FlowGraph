@@ -11,7 +11,7 @@ FFlowPin UFlowNode_SubGraph::FinishPin(TEXT("Finish"));
 
 UFlowNode_SubGraph::UFlowNode_SubGraph(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-	  , bCanInstanceIdenticalAsset(false)
+	, bCanInstanceIdenticalAsset(false)
 {
 #if WITH_EDITOR
 	Category = TEXT("Route");
@@ -93,7 +93,7 @@ void UFlowNode_SubGraph::ExecuteInput(const FName& PinName)
 			GetFlowSubsystem()->CreateSubFlow(this, PropertiesToSet);
 		}
 	}
-	else
+	else if (!PinName.IsNone())
 	{
 		GetFlowAsset()->TriggerCustomEvent(this, PinName);
 	}

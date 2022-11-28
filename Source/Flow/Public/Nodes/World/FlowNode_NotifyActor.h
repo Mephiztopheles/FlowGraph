@@ -16,29 +16,19 @@ class FLOW_API UFlowNode_NotifyActor : public UFlowNode
 	GENERATED_UCLASS_BODY()
 
 protected:
-	UPROPERTY(EditAnywhere, Category = "ObservedComponent")
+	UPROPERTY(EditAnywhere, Category = "Notify")
 	FGameplayTagContainer IdentityTags;
 	
-	UPROPERTY(EditAnywhere, Category = "ObservedComponent")
+	UPROPERTY(EditAnywhere, Category = "Notify")
 	FGameplayTagContainer NotifyTags;
 
-	UPROPERTY(EditAnywhere, Category = "ObservedComponent")
+	UPROPERTY(EditAnywhere, Category = "Notify")
 	EFlowNetMode NetMode;
 
-	virtual void PostLoad() override;
-	
 	virtual void ExecuteInput(const FName& PinName) override;
 
 #if WITH_EDITOR
 public:
 	virtual FString GetNodeDescription() const override;
 #endif
-
-private:
-	UPROPERTY()
-	FGameplayTag IdentityTag_DEPRECATED;
-
-	UPROPERTY()
-	FGameplayTag NotifyTag_DEPRECATED;
-	
 };

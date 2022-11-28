@@ -138,17 +138,20 @@ void UFlowNode_Timer::OnSave_Implementation()
 
 void UFlowNode_Timer::OnLoad_Implementation()
 {
-	if (RemainingStepTime > 0.0f)
+	if (RemainingStepTime > 0.0f || RemainingCompletionTime > 0.0f)
 	{
-		GetWorld()->GetTimerManager().SetTimer(StepTimerHandle, this, &UFlowNode_Timer::OnStep, StepTime, true,
+		if (RemainingStepTime > 0.0f)
+		{
+			GetWorld()->GetTimerManager().SetTimer(StepTimerHandle, this, &UFlowNode_Timer::OnStep, StepTime, true,
 		                                       RemainingStepTime);
-	}
+		}
 
-	GetWorld()->GetTimerManager().SetTimer(CompletionTimerHandle, this, &UFlowNode_Timer::OnCompletion,
+		GetWorld()->GetTimerManager().SetTimer(CompletionTimerHandle, this, &UFlowNode_Timer::OnCompletion,
 	                                       RemainingCompletionTime, false);
 
-	RemainingStepTime = 0.0f;
-	RemainingCompletionTime = 0.0f;
+		RemainingStepTime = 0.0f;
+		RemainingCompletionTime = 0.0f;
+	}
 }
 
 #if WITH_EDITOR
