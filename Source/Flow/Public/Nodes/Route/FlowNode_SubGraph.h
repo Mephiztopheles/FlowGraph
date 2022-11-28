@@ -37,7 +37,7 @@ private:
 	 */
 	UPROPERTY(EditAnywhere, Category = "Graph")
 	bool bCanInstanceIdenticalAsset;
-
+	
 	UPROPERTY(SaveGame)
 	FString SavedAssetInstanceName;
 
@@ -47,7 +47,7 @@ protected:
 	virtual void SetProperties(TArray<FFlowInputOutputPin> Pins) override;
 	virtual const TArray<FFlowPropertyPin> GetInputProperties() override;
 	virtual const TArray<FFlowPropertyPin> GetOutputProperties() override;
-
+	
 	virtual void PreloadContent() override;
 	virtual void FlushContent() override;
 
