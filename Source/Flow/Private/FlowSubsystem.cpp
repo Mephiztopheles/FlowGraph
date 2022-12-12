@@ -173,7 +173,7 @@ UFlowAsset* UFlowSubsystem::CreateSubFlow(UFlowNode_SubGraph* SubGraphNode, TMap
 		for (TTuple<FProperty*, FString> PropertyPin : PropertiesToSet)
 		{
 			uint8* MutableMemory = PropertyPin.Key->ContainerPtrToValuePtr<uint8>(NewInstance->Properties.GetMutableMemory());
-			PropertyPin.Key->ImportText(*PropertyPin.Value, MutableMemory, PPF_None, ScriptStruct);
+			PropertyPin.Key->ImportText_Direct(*PropertyPin.Value, MutableMemory,  ScriptStruct, PPF_None);
 		}
 
 		InstancedSubFlows.Add(SubGraphNode, NewInstance);

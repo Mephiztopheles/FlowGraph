@@ -3,7 +3,7 @@
 #pragma once
 #include "IAssetTypeActions.h"
 
-// #include "SDetailsDiff.h"
+#include "SDetailsDiff.h"
 
 struct FFlowGraphToDiff;
 class UFlowAsset;

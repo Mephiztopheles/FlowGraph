@@ -1,6 +1,6 @@
 #pragma once
 
-#include "PropertyPathHelpers.h"
+#include "EdGraphSchema_K2.h"
 #include "Nodes/FlowNode.h"
 #include "Nodes/FlowPin.h"
 #include "FlowAsset.h"
@@ -120,7 +120,7 @@ namespace FlowPropertyHelpers
 
 			FString Value;
 			ConnectedPin.OutputProperty->ExportText_Direct(Value, OutputValuePtr, OutputValuePtr, ConnectedParentNode->GetVariableHolder(), PPF_None);
-			ConnectedPin.InputProperty->ImportText(*Value, InputValuePtr, PPF_None, TargetNode->GetVariableHolder());
+			ConnectedPin.InputProperty->ImportText_Direct(*Value, InputValuePtr, TargetNode->GetVariableHolder(), PPF_None);
 
 			return true;
 		}
