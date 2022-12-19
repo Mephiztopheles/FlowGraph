@@ -6,7 +6,6 @@
 #include "Asset/AssetTypeActions_FlowAsset.h"
 #include "Asset/FlowAssetDetails.h"
 #include "Asset/FlowAssetEditor.h"
-#include "Asset/FlowAssetIndexer.h"
 #include "Graph/FlowGraphConnectionDrawingPolicy.h"
 #include "Graph/FlowGraphSettings.h"
 #include "LevelEditor/SLevelEditorFlow.h"
@@ -17,6 +16,13 @@
 #include "Nodes/Customizations/FlowNode_CustomInputDetails.h"
 #include "Nodes/Customizations/FlowNode_CustomOutputDetails.h"
 #include "Nodes/Customizations/FlowNode_PlayLevelSequenceDetails.h"
+#include "Pins/SFlowInputPinHandle.h"
+#include "Pins/SFlowOutputPinHandle.h"
+
+#include "FlowEditorDefines.h"
+#if ENABLE_FLOW_SEARCH
+#include "Asset/FlowAssetIndexer.h"
+#endif
 
 #include "FlowAsset.h"
 #include "Nodes/Route/FlowNode_CustomInput.h"
@@ -47,6 +53,8 @@ void FFlowEditorModule::StartupModule()
 
 	// register visual utilities
 	FEdGraphUtilities::RegisterVisualPinConnectionFactory(MakeShareable(new FFlowGraphConnectionDrawingPolicyFactory));
+	FEdGraphUtilities::RegisterVisualPinFactory(MakeShareable(new FFlowInputPinHandleFactory()));
+	FEdGraphUtilities::RegisterVisualPinFactory(MakeShareable(new FFlowOutputPinHandleFactory()));
 
 	// add Flow Toolbar
 	if (UFlowGraphSettings::Get()->bShowAssetToolbarAboveLevelEditor)
@@ -90,12 +98,6 @@ void FFlowEditorModule::ShutdownModule()
 
 	UnregisterAssets();
 
-	// unregister visual utilities
-	if (FlowGraphConnectionFactory.IsValid())
-	{
-		FEdGraphUtilities::UnregisterVisualPinConnectionFactory(FlowGraphConnectionFactory);
-	}
-
 	// unregister track editors
 	ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>("Sequencer");
 	SequencerModule.UnRegisterTrackEditor(FlowTrackCreateEditorHandle);
@@ -113,14 +115,38 @@ void FFlowEditorModule::ShutdownModule()
 			}
 		}
 	}
-	
+
 	FModuleManager::Get().OnModulesChanged().Remove(ModulesChangedHandle);
 }
 
 void FFlowEditorModule::RegisterAssets()
 {
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	FlowAssetCategory = AssetTools.RegisterAdvancedAssetCategory(FName(TEXT("Flow")), UFlowGraphSettings::Get()->FlowAssetCategoryName);
+
+	// try to merge asset category with a built-in one
+	{
+		const FText AssetCategoryText = UFlowGraphSettings::Get()->FlowAssetCategoryName;
+
+		// Find matching built-in category
+		if (!AssetCategoryText.IsEmpty())
+		{
+			TArray<FAdvancedAssetCategory> AllCategories;
+			AssetTools.GetAllAdvancedAssetCategories(AllCategories);
+			for (const FAdvancedAssetCategory& ExistingCategory : AllCategories)
+			{
+				if (ExistingCategory.CategoryName.EqualTo(AssetCategoryText))
+				{
+					FlowAssetCategory = ExistingCategory.CategoryType;
+					break;
+				}
+			}
+		}
+
+		if (FlowAssetCategory == EAssetTypeCategories::None)
+		{
+			FlowAssetCategory = AssetTools.RegisterAdvancedAssetCategory(FName(TEXT("Flow")), AssetCategoryText);
+		}
+	}
 
 	const TSharedRef<IAssetTypeActions> FlowAssetActions = MakeShareable(new FAssetTypeActions_FlowAsset());
 	RegisteredAssetActions.Add(FlowAssetActions);
@@ -176,9 +202,11 @@ void FFlowEditorModule::RegisterAssetIndexers() const
 {
 	/**
 	 * Documentation: https://github.com/MothCocoon/FlowGraph/wiki/Asset-Search
-	 * Uncomment line below, if you made these changes to the engine: https://github.com/EpicGames/UnrealEngine/pull/9070
+	 * Set macro value to 1, if you made these changes to the engine: https://github.com/EpicGames/UnrealEngine/pull/9070
 	 */
-	//IAssetSearchModule::Get().RegisterAssetIndexer(UFlowAsset::StaticClass(), MakeUnique<FFlowAssetIndexer>());
+#if ENABLE_FLOW_SEARCH
+	IAssetSearchModule::Get().RegisterAssetIndexer(UFlowAsset::StaticClass(), MakeUnique<FFlowAssetIndexer>());
+#endif
 }
 
 void FFlowEditorModule::CreateFlowToolbar(FToolBarBuilder& ToolbarBuilder) const

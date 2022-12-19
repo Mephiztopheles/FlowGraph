@@ -9,12 +9,19 @@ struct FLOW_API FFlowPin
 {
 	GENERATED_BODY()
 
+	// A logical name, used during execution of pin
 	UPROPERTY(EditDefaultsOnly, Category = "FlowPin")
 	FName PinName;
+
+	// An optional Display Name, you can use it to override PinName without the need to update graph connections
+	UPROPERTY(EditDefaultsOnly, Category = "FlowPin")
+	FText PinFriendlyName;
 
 	UPROPERTY(EditDefaultsOnly, Category = "FlowPin")
 	FString PinToolTip;
 
+	static inline FName AnyPinName = TEXT("AnyPinName");
+	
 	FFlowPin()
 		: PinName(NAME_None)
 	{
@@ -50,26 +57,22 @@ struct FLOW_API FFlowPin
 	{
 	}
 
-	FFlowPin(const FName& InPinName, const FString& InPinTooltip)
+	FFlowPin(const FStringView InPinName, const FText& InPinFriendlyName)
+		: PinName(InPinName)
+		  , PinFriendlyName(InPinFriendlyName)
+	{
+	}
+
+	FFlowPin(const FStringView InPinName, const FString& InPinTooltip)
 		: PinName(InPinName)
 		  , PinToolTip(InPinTooltip)
+	
 	{
 	}
 
-	FFlowPin(const FString& InPinName, const FString& InPinTooltip)
-		: PinName(*InPinName)
-		  , PinToolTip(InPinTooltip)
-	{
-	}
-
-	FFlowPin(const FText& InPinName, const FString& InPinTooltip)
-		: PinName(*InPinName.ToString())
-		  , PinToolTip(InPinTooltip)
-	{
-	}
-
-	FFlowPin(const TCHAR* InPinName, const FString& InPinTooltip)
-		: PinName(FName(InPinName))
+	FFlowPin(const FStringView InPinName, const FText& InPinFriendlyName, const FString& InPinTooltip)
+		: PinName(InPinName)
+		, PinFriendlyName(InPinFriendlyName)
 		  , PinToolTip(InPinTooltip)
 	{
 	}
@@ -102,6 +105,41 @@ struct FLOW_API FFlowPin
 	friend uint32 GetTypeHash(const FFlowPin& FlowPin)
 	{
 		return GetTypeHash(FlowPin.PinName);
+	}
+};
+
+USTRUCT()
+struct FLOW_API FFlowPinHandle
+{
+	GENERATED_BODY()
+
+	// Update SFlowPinHandleBase code if this property name would be ever changed
+	UPROPERTY()
+	FName PinName;
+
+	FFlowPinHandle()
+		: PinName(NAME_None)
+	{
+	}
+};
+
+USTRUCT(BlueprintType)
+struct FLOW_API FFlowInputPinHandle : public FFlowPinHandle
+{
+	GENERATED_BODY()
+
+	FFlowInputPinHandle()
+	{
+	}
+};
+
+USTRUCT(BlueprintType)
+struct FLOW_API FFlowOutputPinHandle : public FFlowPinHandle
+{
+	GENERATED_BODY()
+
+	FFlowOutputPinHandle()
+	{
 	}
 };
 
@@ -229,20 +267,29 @@ struct FLOW_API FConnectedPin
 	}
 };
 
+UENUM(BlueprintType)
+enum class EFlowPinActivationType : uint8
+{
+	Default,
+	Forced,
+	PassThrough
+};
+
 // Every time pin is activated, we record it and display this data while user hovers mouse over pin
 #if !UE_BUILD_SHIPPING
 struct FLOW_API FPinRecord
 {
 	double Time;
 	FString HumanReadableTime;
-	bool bForcedActivation;
+	EFlowPinActivationType ActivationType;
 
 	static FString NoActivations;
 	static FString PinActivations;
 	static FString ForcedActivation;
+	static FString PassThroughActivation;
 
 	FPinRecord();
-	FPinRecord(const double InTime, const bool bInForcedActivation);
+	FPinRecord(const double InTime, const EFlowPinActivationType InActivationType);
 
 private:
 	FORCEINLINE static FString DoubleDigit(const int32 Number);

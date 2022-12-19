@@ -3,7 +3,6 @@
 #include "FlowEditorCommands.h"
 
 #include "FlowEditorStyle.h"
-#include "Graph/FlowGraphSchema.h"
 #include "Graph/FlowGraphSchema_Actions.h"
 
 #include "Nodes/FlowNode.h"
@@ -21,7 +20,7 @@ FFlowToolbarCommands::FFlowToolbarCommands()
 void FFlowToolbarCommands::RegisterCommands()
 {
 	UI_COMMAND(RefreshAsset, "Refresh Asset", "Refresh asset and all nodes", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(GoToMasterInstance, "Go To Master", "Open editor for the Flow Asset that created this Flow instance", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(GoToParentInstance, "Go To Parent", "Open editor for the Flow Asset that created this Flow instance", EUserInterfaceActionType::Button, FInputChord());
 }
 
 FFlowGraphCommands::FFlowGraphCommands()
@@ -44,6 +43,9 @@ void FFlowGraphCommands::RegisterCommands()
 	UI_COMMAND(DisablePinBreakpoint, "Disable Pin Breakpoint", "Disables a breakpoint on the pin", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(TogglePinBreakpoint, "Toggle Pin Breakpoint", "Toggles a breakpoint on the pin", EUserInterfaceActionType::Button, FInputChord());
 
+	UI_COMMAND(EnableNode, "Enable Node", "Default state, node is fully executed.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(DisableNode, "Disable Node", "No logic executed, any Input Pin activation is ignored. Node instantly enters a deactivated state.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(SetPassThrough, "Set Pass Through", "Internal node logic not executed. All connected outputs are triggered, node finishes its work.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ForcePinActivation, "Force Pin Activation", "Forces execution of the pin in a graph, used to bypass blockers", EUserInterfaceActionType::Button, FInputChord());
 
 	UI_COMMAND(FocusViewport, "Focus Viewport", "Focus viewport on actor assigned to the node", EUserInterfaceActionType::Button, FInputChord());

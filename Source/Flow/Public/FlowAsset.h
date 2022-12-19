@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "FlowSave.h"
 #include "FlowTypes.h"
 #include "InstancedStruct.h"
@@ -62,7 +61,13 @@ class FLOW_API UFlowAsset : public UObject
 	friend class FFlowAssetDetails;
 	friend class UFlowGraphSchema;
 
-	//////////////////////////////////////////////////////////////////////////
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Flow Asset")
+	FGuid AssetGuid;
+
+	// Set it to False, if this asset is instantiated as Root Flow for owner that doesn't live in the world
+	// This allow to SaveGame support works properly, if owner of Root Flow would be Game Instance or its subsystem
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Flow Asset")
+	bool bWorldBound;//////////////////////////////////////////////////////////////////////////
 	// Graph
 
 #if WITH_EDITOR
@@ -114,14 +119,14 @@ private:
 	 * Custom Inputs define custom entry points in graph, it's similar to blueprint Custom Events
 	 * Sub Graph node using this Flow Asset will generate context Input Pin for every valid Event name on this list
 	 */
-	UPROPERTY(EditAnywhere, Category = "Flow")
+	UPROPERTY(EditAnywhere, Category = "Sub Graph")
 	TArray<FName> CustomInputs;
 
 	/**
 	 * Custom Outputs define custom graph outputs, this allow to send signals to the parent graph while executing this graph
 	 * Sub Graph node using this Flow Asset will generate context Output Pin for every valid Event name on this list
 	 */
-	UPROPERTY(EditAnywhere, Category = "Flow")
+	UPROPERTY(EditAnywhere, Category = "Sub Graph")
 	TArray<FName> CustomOutputs;
 
 public:
@@ -137,8 +142,21 @@ public:
 	void HarvestNodeConnections();
 #endif
 
-	UFlowNode* GetNode(const FGuid& Guid) const;
 	TMap<FGuid, UFlowNode*> GetNodes() const { return Nodes; }
+    UFlowNode* GetNode(const FGuid& Guid) const { return Nodes.FindRef(Guid); }
+
+    template <class T>
+    T* GetNode(const FGuid& Guid) const
+    {
+        static_assert(TPointerIsConvertibleFromTo<T, const UFlowNode>::Value, "'T' template parameter to GetNode must be derived from UFlowNode");
+        
+        if (UFlowNode* Node = Nodes.FindRef(Guid))
+        {
+            return Cast<T>(Node);
+        }
+
+        return nullptr;
+    }
 
 	TArray<FName> GetCustomInputs() const { return CustomInputs; }
 	TArray<FName> GetCustomOutputs() const { return CustomOutputs; }
@@ -200,7 +218,7 @@ private:
 
 	// Optional entry points to the graph, similar to blueprint Custom Events
 	UPROPERTY()
-	TMap<FName, UFlowNode_CustomInput*> CustomInputNodes;
+	TSet<UFlowNode_CustomInput*> CustomInputNodes;
 
 	UPROPERTY()
 	TSet<UFlowNode*> PreloadedNodes;
@@ -216,7 +234,8 @@ private:
 	EFlowFinishPolicy FinishPolicy;
 
 public:
-	void InitializeInstance(const TWeakObjectPtr<UObject> InOwner, UFlowAsset* InTemplateAsset);
+	virtual void InitializeInstance(const TWeakObjectPtr<UObject> InOwner, UFlowAsset* InTemplateAsset);
+	virtual void DeinitializeInstance();
 
 	UFlowAsset* GetTemplateAsset() const { return TemplateAsset; }
 
@@ -236,16 +255,16 @@ public:
 	virtual void PreStartFlow();
 	virtual void StartFlow();
 
-	virtual void FinishFlow(const EFlowFinishPolicy InFinishPolicy);
+	virtual void FinishFlow(const EFlowFinishPolicy InFinishPolicy, const bool bRemoveInstance = true);
 
 	// Get Flow Asset instance created by the given SubGraph node
 	TWeakObjectPtr<UFlowAsset> GetFlowInstance(UFlowNode_SubGraph* SubGraphNode) const;
 
 private:
-	void TriggerCustomEvent(UFlowNode_SubGraph* Node, const FName& EventName);
+	void TriggerCustomEvent(UFlowNode_SubGraph* Node, const FName& EventName) const;
 	void TriggerCustomOutput(const FName& EventName) const;
 
-	void TriggerInput(const FConnectedPin& InConnectedPin);
+	void TriggerInput(const FConnectedPin& InConnectedPin, const EFlowPinActivationType ActivationType = EFlowPinActivationType::Default);
 
 	void FinishNode(UFlowNode* Node);
 	void ResetNodes();
@@ -255,7 +274,7 @@ public:
 	FName GetDisplayName() const;
 
 	UFlowNode_SubGraph* GetNodeOwningThisAssetInstance() const;
-	UFlowAsset* GetMasterInstance() const;
+	UFlowAsset* GetParentInstance() const;
 
 	// Are there any active nodes?
 	UFUNCTION(BlueprintPure, Category = "Flow")

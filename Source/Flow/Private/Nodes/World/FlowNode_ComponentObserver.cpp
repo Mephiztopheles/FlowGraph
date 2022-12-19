@@ -18,16 +18,6 @@ UFlowNode_ComponentObserver::UFlowNode_ComponentObserver(const FObjectInitialize
 	OutputPins = {FFlowPin(TEXT("Success")), FFlowPin(TEXT("Completed")), FFlowPin(TEXT("Stopped"))};
 }
 
-void UFlowNode_ComponentObserver::PostLoad()
-{
-	Super::PostLoad();
-
-	if (IdentityTag_DEPRECATED.IsValid())
-	{
-		IdentityTags = FGameplayTagContainer(IdentityTag_DEPRECATED);
-	}
-}
-
 void UFlowNode_ComponentObserver::ExecuteInput(const FName& PinName)
 {
 	if (IdentityTags.IsValid())
@@ -59,18 +49,27 @@ void UFlowNode_ComponentObserver::StartObserving()
 {
 	if (UFlowSubsystem* FlowSubsystem = GetFlowSubsystem())
 	{
-		for (const TWeakObjectPtr<UFlowComponent>& FoundComponent : FlowSubsystem->GetComponents<UFlowComponent>(IdentityTags, EGameplayContainerMatchType::Any))
+		// translate Flow name into engine types
+		const EGameplayContainerMatchType ContainerMatchType = (IdentityMatchType == EFlowTagContainerMatchType::HasAny || IdentityMatchType == EFlowTagContainerMatchType::HasAnyExact) ? EGameplayContainerMatchType::Any : EGameplayContainerMatchType::All;
+		const bool bExactMatch = (IdentityMatchType == EFlowTagContainerMatchType::HasAnyExact || IdentityMatchType == EFlowTagContainerMatchType::HasAllExact);
+
+		// collect already registered components
+		for (const TWeakObjectPtr<UFlowComponent>& FoundComponent : FlowSubsystem->GetComponents<UFlowComponent>(IdentityTags, ContainerMatchType, bExactMatch))
 		{
 			ObserveActor(FoundComponent->GetOwner(), FoundComponent);
+			
+			// node might finish work immediately as the effect of ObserveActor()
+			// we should terminate iteration in this case
+			if (GetActivationState() != EFlowNodeState::Active)
+			{
+				return;
+			}
 		}
-
-		// clear old bindings before binding again, which might happen while loading a SaveGame
-		StopObserving();
-
-		FlowSubsystem->OnComponentRegistered.AddDynamic(this, &UFlowNode_ComponentObserver::OnComponentRegistered);
-		FlowSubsystem->OnComponentTagAdded.AddDynamic(this, &UFlowNode_ComponentObserver::OnComponentTagAdded);
-		FlowSubsystem->OnComponentTagRemoved.AddDynamic(this, &UFlowNode_ComponentObserver::OnComponentTagRemoved);
-		FlowSubsystem->OnComponentUnregistered.AddDynamic(this, &UFlowNode_ComponentObserver::OnComponentUnregistered);
+		
+		FlowSubsystem->OnComponentRegistered.AddUniqueDynamic(this, &UFlowNode_ComponentObserver::OnComponentRegistered);
+		FlowSubsystem->OnComponentTagAdded.AddUniqueDynamic(this, &UFlowNode_ComponentObserver::OnComponentTagAdded);
+		FlowSubsystem->OnComponentTagRemoved.AddUniqueDynamic(this, &UFlowNode_ComponentObserver::OnComponentTagRemoved);
+		FlowSubsystem->OnComponentUnregistered.AddUniqueDynamic(this, &UFlowNode_ComponentObserver::OnComponentUnregistered);
 	}
 }
 

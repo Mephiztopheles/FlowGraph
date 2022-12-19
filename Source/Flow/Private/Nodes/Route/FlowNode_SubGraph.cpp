@@ -93,7 +93,7 @@ void UFlowNode_SubGraph::ExecuteInput(const FName& PinName)
 			GetFlowSubsystem()->CreateSubFlow(this, PropertiesToSet);
 		}
 	}
-	else
+	else if (!PinName.IsNone())
 	{
 		GetFlowAsset()->TriggerCustomEvent(this, PinName);
 	}
