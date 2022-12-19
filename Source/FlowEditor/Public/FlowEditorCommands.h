@@ -7,13 +7,13 @@
 #include "Framework/Commands/UICommandInfo.h"
 #include "Templates/SharedPointer.h"
 
-class FFlowToolbarCommands final : public TCommands<FFlowToolbarCommands>
+class FLOWEDITOR_API FFlowToolbarCommands final : public TCommands<FFlowToolbarCommands>
 {
 public:
 	FFlowToolbarCommands();
 
 	TSharedPtr<FUICommandInfo> RefreshAsset;
-	TSharedPtr<FUICommandInfo> GoToMasterInstance;
+	TSharedPtr<FUICommandInfo> GoToParentInstance;
 
 	virtual void RegisterCommands() override;
 };
@@ -41,6 +41,9 @@ public:
 	TSharedPtr<FUICommandInfo> TogglePinBreakpoint;
 
 	/** Execution Override */
+	TSharedPtr<FUICommandInfo> EnableNode;
+	TSharedPtr<FUICommandInfo> DisableNode;
+	TSharedPtr<FUICommandInfo> SetPassThrough;
 	TSharedPtr<FUICommandInfo> ForcePinActivation;
 
 	/** Jumps */

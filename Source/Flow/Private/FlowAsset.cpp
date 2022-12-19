@@ -7,7 +7,6 @@
 #include "Nodes/FlowNode.h"
 #include "Nodes/Route/FlowNode_CustomInput.h"
 #include "Nodes/Route/FlowNode_Start.h"
-#include "Nodes/Route/FlowNode_Finish.h"
 #include "Nodes/Route/FlowNode_SubGraph.h"
 
 #include "Engine/World.h"
@@ -16,6 +15,7 @@
 
 UFlowAsset::UFlowAsset(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+	, bWorldBound(true)
 #if WITH_EDITOR
 	  , FlowGraph(nullptr)
 #endif
@@ -25,6 +25,10 @@ UFlowAsset::UFlowAsset(const FObjectInitializer& ObjectInitializer)
 	  , StartNode(nullptr)
 	  , FinishPolicy(EFlowFinishPolicy::Keep)
 {
+	if (!AssetGuid.IsValid())
+	{
+		AssetGuid = FGuid::NewGuid();
+	}
 }
 
 #if WITH_EDITOR
@@ -54,6 +58,7 @@ void UFlowAsset::PostDuplicate(bool bDuplicateForPIE)
 
 	if (!bDuplicateForPIE)
 	{
+		AssetGuid = FGuid::NewGuid();
 		Nodes.Empty();
 	}
 }
@@ -233,11 +238,6 @@ void UFlowAsset::HarvestNodeConnections()
 }
 #endif
 
-UFlowNode* UFlowAsset::GetNode(const FGuid& Guid) const
-{
-	return Nodes.FindRef(Guid);
-}
-
 void UFlowAsset::AddInstance(UFlowAsset* Instance)
 {
 	ActiveInstances.Add(Instance);
@@ -328,10 +328,9 @@ void UFlowAsset::InitializeInstance(const TWeakObjectPtr<UObject> InOwner, UFlow
 
 		if (UFlowNode_CustomInput* CustomInput = Cast<UFlowNode_CustomInput>(NewNodeInstance))
 		{
-			const FName& EventName = CustomInput->EventName;
-			if (!EventName.IsNone() && !CustomInputNodes.Contains(CustomInput->EventName))
+			if (!CustomInput->EventName.IsNone())
 			{
-				CustomInputNodes.Emplace(CustomInput->EventName, CustomInput);
+				CustomInputNodes.Emplace(CustomInput);
 			}
 		}
 
@@ -339,12 +338,24 @@ void UFlowAsset::InitializeInstance(const TWeakObjectPtr<UObject> InOwner, UFlow
 	}
 }
 
+void UFlowAsset::DeinitializeInstance()
+{
+	if (TemplateAsset)
+	{
+		const int32 ActiveInstancesLeft = TemplateAsset->RemoveInstance(this);
+		if (ActiveInstancesLeft == 0 && GetFlowSubsystem())
+		{
+			GetFlowSubsystem()->RemoveInstancedTemplate(TemplateAsset);
+		}
+	}
+}
+
 void UFlowAsset::PreloadNodes()
 {
 	TArray<UFlowNode*> GraphEntryNodes = {StartNode};
-	for (const TPair<FName, UFlowNode_CustomInput*>& CustomEvent : CustomInputNodes)
+	for (UFlowNode_CustomInput* CustomInput : CustomInputNodes)
 	{
-		GraphEntryNodes.Emplace(CustomEvent.Value);
+		GraphEntryNodes.Emplace(CustomInput);
 	}
 
 	// NOTE: this is just the example algorithm of gathering nodes for pre-load
@@ -397,7 +408,7 @@ void UFlowAsset::StartFlow()
 	StartNode->TriggerFirstOutput(true);
 }
 
-void UFlowAsset::FinishFlow(const EFlowFinishPolicy InFinishPolicy)
+void UFlowAsset::FinishFlow(const EFlowFinishPolicy InFinishPolicy, const bool bRemoveInstance /*= true*/)
 {
 	FinishPolicy = InFinishPolicy;
 
@@ -415,11 +426,10 @@ void UFlowAsset::FinishFlow(const EFlowFinishPolicy InFinishPolicy)
 	}
 	PreloadedNodes.Empty();
 
-	// clear instance entries
-	const int32 ActiveInstancesLeft = TemplateAsset->RemoveInstance(this);
-	if (ActiveInstancesLeft == 0 && GetFlowSubsystem())
+	// provides option to finish game-specific logic prior to removing asset instance 
+	if (bRemoveInstance)
 	{
-		GetFlowSubsystem()->RemoveInstancedTemplate(TemplateAsset);
+		DeinitializeInstance();
 	}
 }
 
@@ -428,15 +438,18 @@ TWeakObjectPtr<UFlowAsset> UFlowAsset::GetFlowInstance(UFlowNode_SubGraph* SubGr
 	return ActiveSubGraphs.FindRef(SubGraphNode);
 }
 
-void UFlowAsset::TriggerCustomEvent(UFlowNode_SubGraph* Node, const FName& EventName)
+void UFlowAsset::TriggerCustomEvent(UFlowNode_SubGraph* Node, const FName& EventName) const
 {
 	const TWeakObjectPtr<UFlowAsset> FlowInstance = ActiveSubGraphs.FindRef(Node);
 	if (FlowInstance.IsValid())
 	{
-		if (UFlowNode_CustomInput* CustomEvent = FlowInstance->CustomInputNodes.FindRef(EventName))
+		for (UFlowNode_CustomInput* CustomInput : FlowInstance->CustomInputNodes)
 		{
-			RecordedNodes.Add(CustomEvent);
-			CustomEvent->TriggerFirstOutput(true);
+			if (CustomInput->EventName == EventName)
+			{
+				FlowInstance->RecordedNodes.Add(CustomInput);
+				CustomInput->TriggerFirstOutput(true);
+			}
 		}
 	}
 }
@@ -446,7 +459,7 @@ void UFlowAsset::TriggerCustomOutput(const FName& EventName) const
 	NodeOwningThisAssetInstance->TriggerOutput(EventName);
 }
 
-void UFlowAsset::TriggerInput(const FConnectedPin& InConnectedPin)
+void UFlowAsset::TriggerInput(const FConnectedPin& InConnectedPin, const EFlowPinActivationType ActivationType /*= Default*/)
 {
 	if (UFlowNode* Node = Nodes.FindRef(InConnectedPin.NodeGuid))
 	{
@@ -456,7 +469,7 @@ void UFlowAsset::TriggerInput(const FConnectedPin& InConnectedPin)
 			RecordedNodes.Add(Node);
 		}
 
-		Node->TriggerInput(InConnectedPin);
+		Node->TriggerInput(InConnectedPin.PinName, ActivationType);
 	}
 }
 
@@ -467,7 +480,7 @@ void UFlowAsset::FinishNode(UFlowNode* Node)
 		ActiveNodes.Remove(Node);
 
 		// if graph reached Finish and this asset instance was created by SubGraph node
-		if (Node->GetClass()->IsChildOf(UFlowNode_Finish::StaticClass()))
+		if (Node->CanFinishGraph())
 		{
 			if (NodeOwningThisAssetInstance.IsValid())
 			{
@@ -506,7 +519,7 @@ UFlowNode_SubGraph* UFlowAsset::GetNodeOwningThisAssetInstance() const
 	return NodeOwningThisAssetInstance.Get();
 }
 
-UFlowAsset* UFlowAsset::GetMasterInstance() const
+UFlowAsset* UFlowAsset::GetParentInstance() const
 {
 	return NodeOwningThisAssetInstance.IsValid() ? NodeOwningThisAssetInstance.Get()->GetFlowAsset() : nullptr;
 }
@@ -595,5 +608,5 @@ void UFlowAsset::OnLoad_Implementation()
 
 bool UFlowAsset::IsBoundToWorld_Implementation()
 {
-	return true;
+	return bWorldBound;
 }

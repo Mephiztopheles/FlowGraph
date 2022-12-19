@@ -5,6 +5,7 @@
 #include "EdGraphSchema_K2.h"
 #include "FlowGraphSchema.generated.h"
 
+class UFlowNode;
 class UFlowAsset;
 
 DECLARE_MULTICAST_DELEGATE(FFlowGraphSchemaRefresh);
@@ -13,7 +14,11 @@ UCLASS()
 class FLOWEDITOR_API UFlowGraphSchema : public UEdGraphSchema_K2
 {
 	GENERATED_UCLASS_BODY()
+
+	friend class UFlowGraph;
+	
 private:
+	static bool bInitialGatherPerformed;
 	static TArray<UClass*> NativeFlowNodes;
 	static TMap<FName, FAssetData> BlueprintFlowNodes;
 	static TMap<UClass*, UClass*> AssignedGraphNodeClasses;
@@ -43,7 +48,7 @@ public:
 	static UClass* GetAssignedGraphNodeClass(const UClass* FlowNodeClass);
 
 private:
-	static bool IsClassContained(const TArray<TSubclassOf<class UFlowNode>> Classes, const UClass* Class);
+	static void ApplyNodeFilter(const UFlowAsset* AssetClassDefaults, const UClass* FlowNodeClass, TArray<UFlowNode*>& FilteredNodes);
 	static void GetFlowNodeActions(FGraphActionMenuBuilder& ActionMenuBuilder, const UFlowAsset* AssetClassDefaults, const FString& CategoryName);
 	static void GetCommentAction(FGraphActionMenuBuilder& ActionMenuBuilder, const UEdGraph* CurrentGraph = nullptr);
 	static void GetPropertyActions(FGraphContextMenuBuilder& ActionMenuBuilder);
@@ -53,9 +58,10 @@ private:
 
 	static void OnBlueprintPreCompile(UBlueprint* Blueprint);
 	static void OnBlueprintCompiled();
-
-	static void GatherFlowNodes();
 	static void OnHotReload(EReloadCompleteReason ReloadCompleteReason);
+
+	static void GatherNativeNodes();
+	static void GatherNodes();
 
 	static void OnAssetAdded(const FAssetData& AssetData);
 	static void AddAsset(const FAssetData& AssetData, const bool bBatch);
