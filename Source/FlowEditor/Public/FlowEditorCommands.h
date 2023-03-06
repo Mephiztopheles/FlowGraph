@@ -7,19 +7,22 @@
 #include "Framework/Commands/UICommandInfo.h"
 #include "Templates/SharedPointer.h"
 
-class FLOWEDITOR_API FFlowToolbarCommands final : public TCommands<FFlowToolbarCommands>
+class FLOWEDITOR_API FFlowToolbarCommands : public TCommands<FFlowToolbarCommands>
 {
 public:
 	FFlowToolbarCommands();
 
 	TSharedPtr<FUICommandInfo> RefreshAsset;
+	TSharedPtr<FUICommandInfo> ValidateAsset;
+
+	TSharedPtr<FUICommandInfo> SearchInAsset;
 	TSharedPtr<FUICommandInfo> GoToParentInstance;
 
 	virtual void RegisterCommands() override;
 };
 
 /** Generic graph commands for the flow graph */
-class FFlowGraphCommands final : public TCommands<FFlowGraphCommands>
+class FLOWEDITOR_API FFlowGraphCommands : public TCommands<FFlowGraphCommands>
 {
 public:
 	FFlowGraphCommands();
@@ -40,6 +43,9 @@ public:
 	TSharedPtr<FUICommandInfo> TogglePinBreakpoint;
 
 	/** Execution Override */
+	TSharedPtr<FUICommandInfo> EnableNode;
+	TSharedPtr<FUICommandInfo> DisableNode;
+	TSharedPtr<FUICommandInfo> SetPassThrough;
 	TSharedPtr<FUICommandInfo> ForcePinActivation;
 
 	/** Jumps */
@@ -50,7 +56,7 @@ public:
 };
 
 /** Handles spawning nodes by keyboard shortcut */
-class FFlowSpawnNodeCommands : public TCommands<FFlowSpawnNodeCommands>
+class FLOWEDITOR_API FFlowSpawnNodeCommands : public TCommands<FFlowSpawnNodeCommands>
 {
 public:
 	FFlowSpawnNodeCommands();

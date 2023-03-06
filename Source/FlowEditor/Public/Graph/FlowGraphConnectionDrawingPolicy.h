@@ -12,7 +12,7 @@ enum class EFlowConnectionDrawType : uint8
 	Circuit
 };
 
-struct FFlowGraphConnectionDrawingPolicyFactory : public FGraphPanelPinConnectionFactory
+struct FLOWEDITOR_API FFlowGraphConnectionDrawingPolicyFactory : public FGraphPanelPinConnectionFactory
 {
 	virtual ~FFlowGraphConnectionDrawingPolicyFactory() override
 	{
@@ -65,6 +65,6 @@ protected:
 	static FVector2D GetControlPoint(const FVector2D& Source, const FVector2D& Target);
 
 	bool ShouldChangeTangentForReroute(class UFlowGraphNode_Reroute* Reroute);
-	bool FindPinCenter(UEdGraphPin* Pin, FVector2D& OutCenter) const;
+	bool FindPinCenter(const UEdGraphPin* Pin, FVector2D& OutCenter) const;
 	bool GetAverageConnectedPosition(class UFlowGraphNode_Reroute* Reroute, EEdGraphPinDirection Direction, FVector2D& OutPos) const;
 };

@@ -11,7 +11,6 @@
 
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
-#include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "UObject/UObjectHash.h"
 
@@ -102,7 +101,7 @@ UFlowAsset* UFlowSubsystem::CreateRootFlow(UObject* Owner, UFlowAsset* FlowAsset
 void UFlowSubsystem::FinishRootFlow(UObject* Owner, UFlowAsset* TemplateAsset, const EFlowFinishPolicy FinishPolicy)
 {
 	UFlowAsset* InstanceToFinish = nullptr;
-	
+
 	for (TPair<UFlowAsset*, TWeakObjectPtr<UObject>>& RootInstance : RootInstances)
 	{
 		if (Owner && Owner == RootInstance.Value.Get() && RootInstance.Key && RootInstance.Key->GetTemplateAsset() == TemplateAsset)
@@ -122,7 +121,7 @@ void UFlowSubsystem::FinishRootFlow(UObject* Owner, UFlowAsset* TemplateAsset, c
 void UFlowSubsystem::FinishAllRootFlows(UObject* Owner, const EFlowFinishPolicy FinishPolicy)
 {
 	TArray<UFlowAsset*> InstancesToFinish;
-	
+
 	for (TPair<UFlowAsset*, TWeakObjectPtr<UObject>>& RootInstance : RootInstances)
 	{
 		if (Owner && Owner == RootInstance.Value.Get() && RootInstance.Key)
@@ -195,7 +194,7 @@ UFlowAsset* UFlowSubsystem::CreateFlowInstance(const TWeakObjectPtr<UObject> Own
 		FlowAsset = Cast<UFlowAsset>(Streamable.LoadSynchronous(FlowAsset.ToSoftObjectPath(), false));
 	}
 
-	InstancedTemplates.Add(FlowAsset.Get());
+	AddInstancedTemplate(FlowAsset.Get());
 
 #if WITH_EDITOR
 	if (GetWorld()->WorldType != EWorldType::Game)
@@ -208,7 +207,7 @@ UFlowAsset* UFlowSubsystem::CreateFlowInstance(const TWeakObjectPtr<UObject> Own
 	// it won't be empty, if we're restoring Flow Asset instance from the SaveGame
 	if (NewInstanceName.IsEmpty())
 	{
-		NewInstanceName = FPaths::GetBaseFilename(FlowAsset.Get()->GetPathName()) + TEXT("_") + FString::FromInt(FlowAsset.Get()->GetInstancesNum());
+		NewInstanceName = MakeUniqueObjectName(this, UFlowAsset::StaticClass(), *FPaths::GetBaseFilename(FlowAsset.Get()->GetPathName())).ToString();
 	}
 
 	UFlowAsset* NewInstance = NewObject<UFlowAsset>(this, FlowAsset->GetClass(), *NewInstanceName, RF_Transient, FlowAsset.Get(), false, nullptr);
@@ -219,8 +218,24 @@ UFlowAsset* UFlowSubsystem::CreateFlowInstance(const TWeakObjectPtr<UObject> Own
 	return NewInstance;
 }
 
+void UFlowSubsystem::AddInstancedTemplate(UFlowAsset* Template)
+{
+	if (!InstancedTemplates.Contains(Template))
+	{
+		InstancedTemplates.Add(Template);
+
+#if WITH_EDITOR
+		Template->RuntimeLog = MakeShareable(new FFlowMessageLog());
+#endif
+	}
+}
+
 void UFlowSubsystem::RemoveInstancedTemplate(UFlowAsset* Template)
 {
+#if WITH_EDITOR
+	Template->RuntimeLog.Reset();
+#endif
+
 	InstancedTemplates.Remove(Template);
 }
 
@@ -325,6 +340,9 @@ void UFlowSubsystem::OnGameSaved(UFlowSaveGame* SaveGame)
 void UFlowSubsystem::OnGameLoaded(UFlowSaveGame* SaveGame)
 {
 	LoadedSaveGame = SaveGame;
+
+	// here's opportunity to apply loaded data to custom systems
+	// it's recommended to do this by overriding method in the subclass
 }
 
 void UFlowSubsystem::LoadRootFlow(UObject* Owner, UFlowAsset* FlowAsset, const FString& SavedAssetInstanceName)

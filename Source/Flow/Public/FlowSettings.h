@@ -12,7 +12,7 @@ class UFlowNode;
  *
  */
 UCLASS(Config = Game, defaultconfig, meta = (DisplayName = "Flow"))
-class UFlowSettings final : public UDeveloperSettings
+class FLOW_API UFlowSettings : public UDeveloperSettings
 {
 	GENERATED_UCLASS_BODY()
 

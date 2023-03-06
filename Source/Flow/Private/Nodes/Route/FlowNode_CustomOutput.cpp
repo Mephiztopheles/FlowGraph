@@ -14,6 +14,7 @@ UFlowNode_CustomOutput::UFlowNode_CustomOutput(const FObjectInitializer& ObjectI
 #endif
 
 	OutputPins.Empty();
+	AllowedSignalModes = {EFlowSignalMode::Enabled, EFlowSignalMode::Disabled};
 }
 
 void UFlowNode_CustomOutput::ExecuteInput(const FName& PinName)
@@ -28,5 +29,16 @@ void UFlowNode_CustomOutput::ExecuteInput(const FName& PinName)
 FString UFlowNode_CustomOutput::GetNodeDescription() const
 {
 	return EventName.ToString();
+}
+
+EDataValidationResult UFlowNode_CustomOutput::ValidateNode()
+{
+	if (EventName.IsNone())
+	{
+		ValidationLog.Error<UFlowNode>(TEXT("Event Name is empty!"), this);
+		return EDataValidationResult::Invalid;
+	}
+
+	return EDataValidationResult::Valid;
 }
 #endif

@@ -19,8 +19,9 @@ FFlowNodeLevelSequenceEvent UFlowNode_PlayLevelSequence::OnPlaybackCompleted;
 UFlowNode_PlayLevelSequence::UFlowNode_PlayLevelSequence(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, bPlayReverse(false)
-	, bReplicates(false)
 	, bUseGraphOwnerAsTransformOrigin(false)
+	, bReplicates(false)
+	, bAlwaysRelevant(false)
 	, bApplyOwnerTimeDilation(true)
 	, LoadedSequence(nullptr)
 	, SequencePlayer(nullptr)
@@ -45,14 +46,14 @@ UFlowNode_PlayLevelSequence::UFlowNode_PlayLevelSequence(const FObjectInitialize
 }
 
 #if WITH_EDITOR
-TArray<FName> UFlowNode_PlayLevelSequence::GetContextOutputs()
+TArray<FFlowPin> UFlowNode_PlayLevelSequence::GetContextOutputs()
 {
 	if (Sequence.IsNull())
 	{
-		return TArray<FName>();
+		return TArray<FFlowPin>();
 	}
 
-	TArray<FName> PinNames = {};
+	TArray<FFlowPin> Pins = {};
 
 	Sequence = Sequence.LoadSynchronous();
 	if (Sequence && Sequence->GetMovieScene())
@@ -69,7 +70,7 @@ TArray<FName> UFlowNode_PlayLevelSequence::GetContextOutputs()
 						{
 							if (!EventName.IsEmpty())
 							{
-								PinNames.Emplace(EventName);
+								Pins.Emplace(EventName);
 							}
 						}
 					}
@@ -78,7 +79,7 @@ TArray<FName> UFlowNode_PlayLevelSequence::GetContextOutputs()
 		}
 	}
 
-	return PinNames;
+	return Pins;
 }
 
 void UFlowNode_PlayLevelSequence::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -126,7 +127,7 @@ void UFlowNode_PlayLevelSequence::InitializeInstance()
 
 void UFlowNode_PlayLevelSequence::CreatePlayer()
 {
-	LoadedSequence = LoadAsset<ULevelSequence>(Sequence);
+	LoadedSequence = Sequence.LoadSynchronous();
 	if (LoadedSequence)
 	{
 		ALevelSequenceActor* SequenceActor;
@@ -157,7 +158,7 @@ void UFlowNode_PlayLevelSequence::CreatePlayer()
 		AActor* TransformOriginActor = bUseGraphOwnerAsTransformOrigin ? OwningActor : nullptr;
 
 		// Finally create the player
-		SequencePlayer = UFlowLevelSequencePlayer::CreateFlowLevelSequencePlayer(this, LoadedSequence, PlaybackSettings, CameraSettings, TransformOriginActor, bReplicates, SequenceActor);
+		SequencePlayer = UFlowLevelSequencePlayer::CreateFlowLevelSequencePlayer(this, LoadedSequence, PlaybackSettings, CameraSettings, TransformOriginActor, bReplicates, bAlwaysRelevant, SequenceActor);
 
 		if (SequencePlayer)
 		{
@@ -174,7 +175,7 @@ void UFlowNode_PlayLevelSequence::ExecuteInput(const FName& PinName)
 {
 	if (PinName == TEXT("Start"))
 	{
-		LoadedSequence = LoadAsset<ULevelSequence>(Sequence);
+		LoadedSequence = Sequence.LoadSynchronous();
 
 		if (GetFlowSubsystem()->GetWorld() && LoadedSequence)
 		{
@@ -219,8 +220,7 @@ void UFlowNode_PlayLevelSequence::OnLoad_Implementation()
 {
 	if (ElapsedTime != 0.0f)
 	{
-		LoadedSequence = LoadAsset<ULevelSequence>(Sequence);
-
+		LoadedSequence = Sequence.LoadSynchronous();
 		if (GetFlowSubsystem()->GetWorld() && LoadedSequence)
 		{
 			CreatePlayer();
@@ -302,7 +302,7 @@ FString UFlowNode_PlayLevelSequence::GetPlaybackProgress() const
 {
 	if (SequencePlayer && SequencePlayer->IsPlaying())
 	{
-		return GetProgressAsString(SequencePlayer->GetCurrentTime().AsSeconds() - StartTime).Append(TEXT(" / ")).Append(GetProgressAsString(SequencePlayer->GetDuration().AsSeconds()));
+		return FString::Printf(TEXT("%.*f / %.*f"), 2, SequencePlayer->GetCurrentTime().AsSeconds() - StartTime, 2, SequencePlayer->GetDuration().AsSeconds());
 	}
 
 	return FString();
@@ -314,6 +314,17 @@ FString UFlowNode_PlayLevelSequence::GetNodeDescription() const
 	return Sequence.IsNull() ? TEXT("[No sequence]") : Sequence.GetAssetName();
 }
 
+EDataValidationResult UFlowNode_PlayLevelSequence::ValidateNode()
+{
+	if (Sequence.IsNull())
+	{
+		ValidationLog.Error<UFlowNode>(TEXT("Level Sequence asset not assigned or invalid!"), this);
+		return EDataValidationResult::Invalid;
+	}
+
+	return EDataValidationResult::Valid;
+}
+
 FString UFlowNode_PlayLevelSequence::GetStatusString() const
 {
 	return GetPlaybackProgress();
@@ -321,7 +332,7 @@ FString UFlowNode_PlayLevelSequence::GetStatusString() const
 
 UObject* UFlowNode_PlayLevelSequence::GetAssetToEdit()
 {
-	return Sequence.IsNull() ? nullptr : LoadAsset<UObject>(Sequence);
+	return Sequence.IsNull() ? nullptr : Sequence.LoadSynchronous();
 }
 #endif
 

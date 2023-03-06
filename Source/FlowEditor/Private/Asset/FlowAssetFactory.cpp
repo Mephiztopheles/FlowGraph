@@ -30,7 +30,7 @@ public:
 	/** Disallow blueprint base classes. */
 	bool bDisallowBlueprintBase;
 
-	virtual bool IsClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const UClass* InClass, TSharedRef<FClassViewerFilterFuncs> InFilterFuncs) override
+	virtual bool IsClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const UClass* InClass, const TSharedRef<FClassViewerFilterFuncs> InFilterFuncs) override
 	{
 		const bool bAllowed = !InClass->HasAnyClassFlags(DisallowedClassFlags) && InFilterFuncs->IfInChildOfClassesSet(AllowedChildrenOfClasses, InClass) != EFilterReturn::Failed;
 
@@ -68,10 +68,9 @@ UFlowAssetFactory::UFlowAssetFactory(const FObjectInitializer& ObjectInitializer
 
 bool UFlowAssetFactory::ConfigureProperties()
 {
-	AssetClass = UFlowGraphSettings::Get()->DefaultFlowAssetClass;;
-	if (AssetClass != nullptr)
+	AssetClass = UFlowGraphSettings::Get()->DefaultFlowAssetClass;
+	if (AssetClass) // Class was set in settings
 	{
-		// Class was selected in settings
 		return true;
 	}
 
@@ -102,19 +101,19 @@ bool UFlowAssetFactory::ConfigureProperties()
 
 UObject* UFlowAssetFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
-	UFlowAsset* NewFlow = nullptr;
-	if (AssetClass != nullptr)
+	UFlowAsset* NewFlowAsset;
+	if (AssetClass)
 	{
-		NewFlow = NewObject<UFlowAsset>(InParent, AssetClass, Name, Flags | RF_Transactional, Context);
+		NewFlowAsset = NewObject<UFlowAsset>(InParent, AssetClass, Name, Flags | RF_Transactional, Context);
 	}
 	else
 	{
 		// if we have no asset class, use the passed-in class instead
-		NewFlow = NewObject<UFlowAsset>(InParent, Class, Name, Flags | RF_Transactional, Context);
+		NewFlowAsset = NewObject<UFlowAsset>(InParent, Class, Name, Flags | RF_Transactional, Context);
 	}
 
-	UFlowGraph::CreateGraph(NewFlow);
-	return NewFlow;
+	UFlowGraph::CreateGraph(NewFlowAsset);
+	return NewFlowAsset;
 }
 
 #undef LOCTEXT_NAMESPACE

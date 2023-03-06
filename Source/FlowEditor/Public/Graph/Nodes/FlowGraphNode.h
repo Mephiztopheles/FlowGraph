@@ -45,6 +45,8 @@ struct FLOWEDITOR_API FFlowBreakpoint
 	void ToggleBreakpoint();
 };
 
+DECLARE_DELEGATE(FFlowGraphNodeEvent);
+
 /**
  * Graph representation of the Flow Node
  */
@@ -70,7 +72,9 @@ public:
 	UPROPERTY()
 	TArray<TSubclassOf<UFlowNode>> AssignedNodeClasses;
 	
-	void SetFlowNode(UFlowNode* InFlowNode);
+	void SetNodeTemplate(UFlowNode* InFlowNode);
+	const UFlowNode* GetNodeTemplate() const;
+
 	UFlowNode* GetFlowNode() const;
 
 	// UObject
@@ -93,6 +97,9 @@ private:
 	void OnBlueprintCompiled();
 
 	void OnExternalChange();
+
+public:
+	virtual void OnGraphRefresh();
 
 //////////////////////////////////////////////////////////////////////////
 // Graph node
@@ -221,6 +228,14 @@ private:
 // Execution Override
 
 public:
+	FFlowGraphNodeEvent OnSignalModeChanged;
+	
 	// Pin activation forced by user during PIE
-	void ForcePinActivation(const FEdGraphPinReference PinReference) const;
+	virtual void ForcePinActivation(const FEdGraphPinReference PinReference) const;
+
+	// Pass-through forced by designer, set per node instance
+	virtual void SetSignalMode(const EFlowSignalMode Mode);
+
+	virtual EFlowSignalMode GetSignalMode() const;
+	virtual bool CanSetSignalMode(const EFlowSignalMode Mode) const;
 };

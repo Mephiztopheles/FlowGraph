@@ -3,6 +3,7 @@
 #include "Nodes/Route/FlowNode_SubGraph.h"
 
 #include "FlowAsset.h"
+#include "FlowMessageLog.h"
 #include "FlowSubsystem.h"
 
 FFlowPin UFlowNode_SubGraph::StartPin(TEXT("Start"));
@@ -102,12 +103,23 @@ FString UFlowNode_SubGraph::GetNodeDescription() const
 
 UObject* UFlowNode_SubGraph::GetAssetToEdit()
 {
-	return Asset.IsNull() ? nullptr : LoadAsset<UObject>(Asset);
+	return Asset.IsNull() ? nullptr : Asset.LoadSynchronous();
 }
 
-TArray<FName> UFlowNode_SubGraph::GetContextInputs()
+EDataValidationResult UFlowNode_SubGraph::ValidateNode()
 {
-	TArray<FName> EventNames;
+	if (Asset.IsNull())
+	{
+		ValidationLog.Error<UFlowNode>(TEXT("Flow Asset not assigned or invalid!"), this);
+		return EDataValidationResult::Invalid;
+	}
+
+	return EDataValidationResult::Valid;
+}
+
+TArray<FFlowPin> UFlowNode_SubGraph::GetContextInputs()
+{
+	TArray<FFlowPin> EventNames;
 
 	if (!Asset.IsNull())
 	{
@@ -124,9 +136,9 @@ TArray<FName> UFlowNode_SubGraph::GetContextInputs()
 	return EventNames;
 }
 
-TArray<FName> UFlowNode_SubGraph::GetContextOutputs()
+TArray<FFlowPin> UFlowNode_SubGraph::GetContextOutputs()
 {
-	TArray<FName> EventNames;
+	TArray<FFlowPin> Pins;
 
 	if (!Asset.IsNull())
 	{
@@ -135,12 +147,12 @@ TArray<FName> UFlowNode_SubGraph::GetContextOutputs()
 		{
 			if (!PinName.IsNone())
 			{
-				EventNames.Emplace(PinName);
+				Pins.Emplace(PinName);
 			}
 		}
 	}
 
-	return EventNames;
+	return Pins;
 }
 
 void UFlowNode_SubGraph::PostLoad()

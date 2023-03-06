@@ -1,13 +1,11 @@
 // Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
 
 #include "FlowEditorCommands.h"
-
 #include "FlowEditorStyle.h"
 #include "Graph/FlowGraphSchema_Actions.h"
 
 #include "Nodes/FlowNode.h"
 
-#include "EditorStyleSet.h"
 #include "Misc/ConfigCacheIni.h"
 
 #define LOCTEXT_NAMESPACE "FlowGraphCommands"
@@ -19,7 +17,10 @@ FFlowToolbarCommands::FFlowToolbarCommands()
 
 void FFlowToolbarCommands::RegisterCommands()
 {
-	UI_COMMAND(RefreshAsset, "Refresh Asset", "Refresh asset and all nodes", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(RefreshAsset, "Refresh", "Refresh asset and all nodes", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(ValidateAsset, "Validate", "Validate asset and all nodes", EUserInterfaceActionType::Button, FInputChord());
+
+	UI_COMMAND(SearchInAsset, "Search", "Search in the current Flow Graph", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Control | EModifierKey::Shift, EKeys::F));
 	UI_COMMAND(GoToParentInstance, "Go To Parent", "Open editor for the Flow Asset that created this Flow instance", EUserInterfaceActionType::Button, FInputChord());
 }
 
@@ -42,6 +43,9 @@ void FFlowGraphCommands::RegisterCommands()
 	UI_COMMAND(DisablePinBreakpoint, "Disable Pin Breakpoint", "Disables a breakpoint on the pin", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(TogglePinBreakpoint, "Toggle Pin Breakpoint", "Toggles a breakpoint on the pin", EUserInterfaceActionType::Button, FInputChord());
 
+	UI_COMMAND(EnableNode, "Enable Node", "Default state, node is fully executed.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(DisableNode, "Disable Node", "No logic executed, any Input Pin activation is ignored. Node instantly enters a deactivated state.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(SetPassThrough, "Set Pass Through", "Internal node logic not executed. All connected outputs are triggered, node finishes its work.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ForcePinActivation, "Force Pin Activation", "Forces execution of the pin in a graph, used to bypass blockers", EUserInterfaceActionType::Button, FInputChord());
 
 	UI_COMMAND(FocusViewport, "Focus Viewport", "Focus viewport on actor assigned to the node", EUserInterfaceActionType::Button, FInputChord());
@@ -67,7 +71,7 @@ void FFlowSpawnNodeCommands::RegisterCommands()
 		FString ClassName;
 		if (FParse::Value(*NodeSpawns[x], TEXT("Class="), ClassName))
 		{
-		    UClass* FoundClass = FindFirstObject<UClass>(*ClassName, EFindFirstObjectOptions::ExactClass, ELogVerbosity::Warning, TEXT("looking for SpawnNodes"));
+			UClass* FoundClass = FindFirstObject<UClass>(*ClassName, EFindFirstObjectOptions::ExactClass, ELogVerbosity::Warning, TEXT("looking for SpawnNodes"));
 			if (FoundClass && FoundClass->IsChildOf(UFlowNode::StaticClass()))
 			{
 				NodeClass = FoundClass;

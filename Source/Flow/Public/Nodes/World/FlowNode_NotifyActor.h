@@ -18,6 +18,14 @@ class FLOW_API UFlowNode_NotifyActor : public UFlowNode
 protected:
 	UPROPERTY(EditAnywhere, Category = "Notify")
 	FGameplayTagContainer IdentityTags;
+
+	/**
+	 * If true, identity tags must be an exact match.
+	 * Be careful, setting this to false may be very expensive, as the
+	 * search cost is proportional to the number of registered Gameplay Tags!
+	 */
+	UPROPERTY(EditAnywhere, Category = "Notify")
+	bool bExactMatch;
 	
 	UPROPERTY(EditAnywhere, Category = "Notify")
 	FGameplayTagContainer NotifyTags;
@@ -25,20 +33,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Notify")
 	EFlowNetMode NetMode;
 
-	virtual void PostLoad() override;
-	
 	virtual void ExecuteInput(const FName& PinName) override;
 
 #if WITH_EDITOR
 public:
 	virtual FString GetNodeDescription() const override;
+	virtual EDataValidationResult ValidateNode() override;
 #endif
-
-private:
-	UPROPERTY()
-	FGameplayTag IdentityTag_DEPRECATED;
-
-	UPROPERTY()
-	FGameplayTag NotifyTag_DEPRECATED;
-	
 };

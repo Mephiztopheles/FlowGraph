@@ -85,7 +85,9 @@ protected:
 	void RemoveSubFlow(UFlowNode_SubGraph* SubGraphNode, const EFlowFinishPolicy FinishPolicy);
 
 	UFlowAsset* CreateFlowInstance(const TWeakObjectPtr<UObject> Owner, TSoftObjectPtr<UFlowAsset> FlowAsset, FString NewInstanceName = FString());
-	void RemoveInstancedTemplate(UFlowAsset* Template);
+
+	virtual void AddInstancedTemplate(UFlowAsset* Template);
+	virtual void RemoveInstancedTemplate(UFlowAsset* Template);
 
 public:
 	/* Returns all assets instanced by object from another system like World Settings */
@@ -126,7 +128,7 @@ public:
 //////////////////////////////////////////////////////////////////////////
 // Component Registry
 
-private:
+protected:
 	/* All the Flow Components currently existing in the world */
 	TMultiMap<FGameplayTag, TWeakObjectPtr<UFlowComponent>> FlowComponentRegistry;
 

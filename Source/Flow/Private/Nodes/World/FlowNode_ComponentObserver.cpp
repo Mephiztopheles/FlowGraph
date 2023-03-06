@@ -18,16 +18,6 @@ UFlowNode_ComponentObserver::UFlowNode_ComponentObserver(const FObjectInitialize
 	OutputPins = {FFlowPin(TEXT("Success")), FFlowPin(TEXT("Completed")), FFlowPin(TEXT("Stopped"))};
 }
 
-void UFlowNode_ComponentObserver::PostLoad()
-{
-	Super::PostLoad();
-
-	if (IdentityTag_DEPRECATED.IsValid())
-	{
-		IdentityTags = FGameplayTagContainer(IdentityTag_DEPRECATED);
-	}
-}
-
 void UFlowNode_ComponentObserver::ExecuteInput(const FName& PinName)
 {
 	if (IdentityTags.IsValid())
@@ -66,25 +56,20 @@ void UFlowNode_ComponentObserver::StartObserving()
 		// collect already registered components
 		for (const TWeakObjectPtr<UFlowComponent>& FoundComponent : FlowSubsystem->GetComponents<UFlowComponent>(IdentityTags, ContainerMatchType, bExactMatch))
 		{
-			if (GetActivationState() == EFlowNodeState::Active)
+			ObserveActor(FoundComponent->GetOwner(), FoundComponent);
+			
+			// node might finish work immediately as the effect of ObserveActor()
+			// we should terminate iteration in this case
+			if (GetActivationState() != EFlowNodeState::Active)
 			{
-				ObserveActor(FoundComponent->GetOwner(), FoundComponent);
-			}
-			else
-			{
-				// node might finish work as the effect of triggering event on the found actor
-				// we should terminate iteration in this case
 				return;
 			}
 		}
-
-		// clear old bindings before binding again, which might happen while loading a SaveGame
-		StopObserving();
-
-		FlowSubsystem->OnComponentRegistered.AddDynamic(this, &UFlowNode_ComponentObserver::OnComponentRegistered);
-		FlowSubsystem->OnComponentTagAdded.AddDynamic(this, &UFlowNode_ComponentObserver::OnComponentTagAdded);
-		FlowSubsystem->OnComponentTagRemoved.AddDynamic(this, &UFlowNode_ComponentObserver::OnComponentTagRemoved);
-		FlowSubsystem->OnComponentUnregistered.AddDynamic(this, &UFlowNode_ComponentObserver::OnComponentUnregistered);
+		
+		FlowSubsystem->OnComponentRegistered.AddUniqueDynamic(this, &UFlowNode_ComponentObserver::OnComponentRegistered);
+		FlowSubsystem->OnComponentTagAdded.AddUniqueDynamic(this, &UFlowNode_ComponentObserver::OnComponentTagAdded);
+		FlowSubsystem->OnComponentTagRemoved.AddUniqueDynamic(this, &UFlowNode_ComponentObserver::OnComponentTagRemoved);
+		FlowSubsystem->OnComponentUnregistered.AddUniqueDynamic(this, &UFlowNode_ComponentObserver::OnComponentUnregistered);
 	}
 }
 
@@ -164,6 +149,17 @@ void UFlowNode_ComponentObserver::Cleanup()
 FString UFlowNode_ComponentObserver::GetNodeDescription() const
 {
 	return GetIdentityTagsDescription(IdentityTags);
+}
+
+EDataValidationResult UFlowNode_ComponentObserver::ValidateNode()
+{
+	if (IdentityTags.IsEmpty())
+	{
+		ValidationLog.Error<UFlowNode>(*UFlowNode::MissingIdentityTag, this);
+		return EDataValidationResult::Invalid;
+	}
+
+	return EDataValidationResult::Valid;
 }
 
 FString UFlowNode_ComponentObserver::GetStatusString() const

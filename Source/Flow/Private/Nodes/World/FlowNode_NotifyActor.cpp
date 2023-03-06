@@ -8,6 +8,7 @@
 
 UFlowNode_NotifyActor::UFlowNode_NotifyActor(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+	, bExactMatch(true)
 	, NetMode(EFlowNetMode::Authority)
 {
 #if WITH_EDITOR
@@ -15,27 +16,11 @@ UFlowNode_NotifyActor::UFlowNode_NotifyActor(const FObjectInitializer& ObjectIni
 #endif
 }
 
-void UFlowNode_NotifyActor::PostLoad()
-{
-	Super::PostLoad();
-
-	if (IdentityTag_DEPRECATED.IsValid())
-	{
-		IdentityTags = FGameplayTagContainer(IdentityTag_DEPRECATED);
-	}
-	
-	if (NotifyTag_DEPRECATED.IsValid())
-	{
-		NotifyTags = FGameplayTagContainer(NotifyTag_DEPRECATED);
-		NotifyTag_DEPRECATED = FGameplayTag();
-	}
-}
-
 void UFlowNode_NotifyActor::ExecuteInput(const FName& PinName)
 {
 	if (const UFlowSubsystem* FlowSubsystem = GetWorld()->GetGameInstance()->GetSubsystem<UFlowSubsystem>())
 	{
-		for (const TWeakObjectPtr<UFlowComponent>& Component : FlowSubsystem->GetComponents<UFlowComponent>(IdentityTags, EGameplayContainerMatchType::Any))
+		for (const TWeakObjectPtr<UFlowComponent>& Component : FlowSubsystem->GetComponents<UFlowComponent>(IdentityTags, EGameplayContainerMatchType::Any, bExactMatch))
 		{
 			Component->NotifyFromGraph(NotifyTags, NetMode);
 		}
@@ -48,5 +33,16 @@ void UFlowNode_NotifyActor::ExecuteInput(const FName& PinName)
 FString UFlowNode_NotifyActor::GetNodeDescription() const
 {
 	return GetIdentityTagsDescription(IdentityTags) + LINE_TERMINATOR + GetNotifyTagsDescription(NotifyTags);
+}
+
+EDataValidationResult UFlowNode_NotifyActor::ValidateNode()
+{
+	if (IdentityTags.IsEmpty())
+	{
+		ValidationLog.Error<UFlowNode>(*UFlowNode::MissingIdentityTag, this);
+		return EDataValidationResult::Invalid;
+	}
+
+	return EDataValidationResult::Valid;
 }
 #endif

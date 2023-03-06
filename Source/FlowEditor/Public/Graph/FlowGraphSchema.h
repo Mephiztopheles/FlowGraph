@@ -5,8 +5,8 @@
 #include "EdGraph/EdGraphSchema.h"
 #include "FlowGraphSchema.generated.h"
 
-class UFlowNode;
 class UFlowAsset;
+class UFlowNode;
 
 DECLARE_MULTICAST_DELEGATE(FFlowGraphSchemaRefresh);
 
@@ -15,10 +15,13 @@ class FLOWEDITOR_API UFlowGraphSchema : public UEdGraphSchema
 {
 	GENERATED_UCLASS_BODY()
 
+	friend class UFlowGraph;
+
 private:
+	static bool bInitialGatherPerformed;
 	static TArray<UClass*> NativeFlowNodes;
 	static TMap<FName, FAssetData> BlueprintFlowNodes;
-	static TMap<UClass*, UClass*> AssignedGraphNodeClasses;
+	static TMap<UClass*, UClass*> GraphNodesByFlowNodes;
 
 	static bool bBlueprintCompilationPending;
 
@@ -52,9 +55,10 @@ private:
 
 	static void OnBlueprintPreCompile(UBlueprint* Blueprint);
 	static void OnBlueprintCompiled();
-
-	static void GatherFlowNodes();
 	static void OnHotReload(EReloadCompleteReason ReloadCompleteReason);
+
+	static void GatherNativeNodes();
+	static void GatherNodes();
 
 	static void OnAssetAdded(const FAssetData& AssetData);
 	static void AddAsset(const FAssetData& AssetData, const bool bBatch);

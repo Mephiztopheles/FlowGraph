@@ -127,31 +127,14 @@ void FFlowGraphConnectionDrawingPolicy::DetermineWiringStyle(UEdGraphPin* Output
 	check(GraphObj);
 	const UEdGraphSchema* Schema = GraphObj->GetSchema();
 
-	{
-		//If reroute node path goes backwards, we need to flip the direction to make it look nice
-		//(all of the logic for this is basically same as in FKismetConnectionDrawingPolicy)
-		UEdGraphNode* OutputNode = OutputPin->GetOwningNode();
-		UEdGraphNode* InputNode = (InputPin != nullptr) ? InputPin->GetOwningNode() : nullptr;
-		if (auto* OutputRerouteNode = Cast<UFlowGraphNode_Reroute>(OutputNode))
-		{
-			if (ShouldChangeTangentForReroute(OutputRerouteNode))
-			{
-				Params.StartDirection = EGPD_Input;
-			}
-		}
-
-		if (auto* InputRerouteNode = Cast<UFlowGraphNode_Reroute>(InputNode))
-		{
-			if (ShouldChangeTangentForReroute(InputRerouteNode))
-			{
-				Params.EndDirection = EGPD_Output;
-			}
-		}
-	}
-
 	if (OutputPin->bOrphanedPin || (InputPin && InputPin->bOrphanedPin))
 	{
 		Params.WireColor = FLinearColor::Red;
+	}
+	else if (Cast<UFlowGraphNode>(OutputPin->GetOwningNode())->GetSignalMode() == EFlowSignalMode::Disabled)
+	{
+		Params.WireColor *= 0.5f;
+		Params.WireThickness = 0.5f;
 	}
 	else
 	{
@@ -189,6 +172,28 @@ void FFlowGraphConnectionDrawingPolicy::DetermineWiringStyle(UEdGraphPin* Output
 			// It's not followed, fade it and keep it thin
 			Params.WireColor = InactiveColor;
 			Params.WireThickness = InactiveWireThickness;
+		}
+	}
+
+	// If reroute node path goes backwards, we need to flip the direction to make it look nice
+	// (all of the logic for this is basically same as in FKismetConnectionDrawingPolicy)
+	{
+		UEdGraphNode* OutputNode = OutputPin->GetOwningNode();
+		UEdGraphNode* InputNode = (InputPin != nullptr) ? InputPin->GetOwningNode() : nullptr;
+		if (auto* OutputRerouteNode = Cast<UFlowGraphNode_Reroute>(OutputNode))
+		{
+			if (ShouldChangeTangentForReroute(OutputRerouteNode))
+			{
+				Params.StartDirection = EGPD_Input;
+			}
+		}
+
+		if (auto* InputRerouteNode = Cast<UFlowGraphNode_Reroute>(InputNode))
+		{
+			if (ShouldChangeTangentForReroute(InputRerouteNode))
+			{
+				Params.EndDirection = EGPD_Output;
+			}
 		}
 	}
 }
@@ -284,7 +289,7 @@ FVector2D FFlowGraphConnectionDrawingPolicy::GetControlPoint(const FVector2D& So
 
 bool FFlowGraphConnectionDrawingPolicy::ShouldChangeTangentForReroute(UFlowGraphNode_Reroute* Reroute)
 {
-	if (bool* pResult = RerouteToReversedDirectionMap.Find(Reroute))
+	if (const bool* pResult = RerouteToReversedDirectionMap.Find(Reroute))
 	{
 		return *pResult;
 	}
@@ -295,9 +300,9 @@ bool FFlowGraphConnectionDrawingPolicy::ShouldChangeTangentForReroute(UFlowGraph
 		FVector2D AverageLeftPin;
 		FVector2D AverageRightPin;
 		FVector2D CenterPin;
-		bool bCenterValid = Reroute->OutputPins.Num() == 0 ? false : FindPinCenter(Reroute->OutputPins[0], /*out*/ CenterPin);
-		bool bLeftValid = GetAverageConnectedPosition(Reroute, EGPD_Input, /*out*/ AverageLeftPin);
-		bool bRightValid = GetAverageConnectedPosition(Reroute, EGPD_Output, /*out*/ AverageRightPin);
+		const bool bCenterValid = Reroute->OutputPins.Num() == 0 ? false : FindPinCenter(Reroute->OutputPins[0], /*out*/ CenterPin);
+		const bool bLeftValid = GetAverageConnectedPosition(Reroute, EGPD_Input, /*out*/ AverageLeftPin);
+		const bool bRightValid = GetAverageConnectedPosition(Reroute, EGPD_Output, /*out*/ AverageRightPin);
 
 		if (bLeftValid && bRightValid)
 		{
@@ -321,13 +326,13 @@ bool FFlowGraphConnectionDrawingPolicy::ShouldChangeTangentForReroute(UFlowGraph
 	}
 }
 
-bool FFlowGraphConnectionDrawingPolicy::FindPinCenter(UEdGraphPin* Pin, FVector2D& OutCenter) const
+bool FFlowGraphConnectionDrawingPolicy::FindPinCenter(const UEdGraphPin* Pin, FVector2D& OutCenter) const
 {
-	if (const TSharedPtr<SGraphPin>* pPinWidget = PinToPinWidgetMap.Find(Pin))
+	if (const TSharedPtr<SGraphPin>* PinWidget = PinToPinWidgetMap.Find(Pin))
 	{
-		if (FArrangedWidget* pPinEntry = PinGeometries->Find((*pPinWidget).ToSharedRef()))
+		if (const FArrangedWidget* PinEntry = PinGeometries->Find((*PinWidget).ToSharedRef()))
 		{
-			OutCenter = FGeometryHelper::CenterOf(pPinEntry->Geometry);
+			OutCenter = FGeometryHelper::CenterOf(PinEntry->Geometry);
 			return true;
 		}
 	}
@@ -346,7 +351,7 @@ bool FFlowGraphConnectionDrawingPolicy::GetAverageConnectedPosition(UFlowGraphNo
 	}
 	
 	UEdGraphPin* Pin = (Direction == EGPD_Input) ? Reroute->InputPins[0] : Reroute->OutputPins[0];
-	for (UEdGraphPin* LinkedPin : Pin->LinkedTo)
+	for (const UEdGraphPin* LinkedPin : Pin->LinkedTo)
 	{
 		FVector2D CenterPoint;
 		if (FindPinCenter(LinkedPin, /*out*/ CenterPoint))

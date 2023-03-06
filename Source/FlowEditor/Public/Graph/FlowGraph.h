@@ -7,7 +7,7 @@
 #include "FlowAsset.h"
 #include "FlowGraph.generated.h"
 
-class FLOWEDITOR_API FFlowGraphInterface final : public IFlowGraphInterface
+class FLOWEDITOR_API FFlowGraphInterface : public IFlowGraphInterface
 {
 public:
 	virtual ~FFlowGraphInterface() override {}
@@ -22,6 +22,7 @@ class FLOWEDITOR_API UFlowGraph : public UEdGraph
 	GENERATED_UCLASS_BODY()
 
 	static UEdGraph* CreateGraph(UFlowAsset* InFlowAsset);
+	void RefreshGraph();
 
 	// UEdGraph
 	virtual void NotifyGraphChanged() override;

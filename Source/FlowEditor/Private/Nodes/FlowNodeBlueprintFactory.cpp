@@ -9,7 +9,6 @@
 #include "ClassViewerFilter.h"
 #include "ClassViewerModule.h"
 #include "Editor.h"
-#include "EditorStyleSet.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/MessageDialog.h"
 #include "Modules/ModuleManager.h"
@@ -262,7 +261,7 @@ UObject* UFlowNodeBlueprintFactory::FactoryCreateNew(UClass* Class, UObject* InP
 
 	if (NewBP && NewBP->UbergraphPages.Num() > 0)
 	{
-		UBlueprintEditorSettings* Settings = GetMutableDefault<UBlueprintEditorSettings>();
+		const UBlueprintEditorSettings* Settings = GetMutableDefault<UBlueprintEditorSettings>();
 		if(Settings && Settings->bSpawnDefaultBlueprintNodes)
 		{
 			int32 NodePositionY = 0;

@@ -1,6 +1,8 @@
 // Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
 
 #include "FlowAsset.h"
+
+#include "FlowMessageLog.h"
 #include "FlowSettings.h"
 #include "FlowSubsystem.h"
 
@@ -62,23 +64,22 @@ void UFlowAsset::PostDuplicate(bool bDuplicateForPIE)
 	}
 }
 
-EDataValidationResult UFlowAsset::IsDataValid(TArray<FText>& ValidationErrors)
+EDataValidationResult UFlowAsset::ValidateAsset(FFlowMessageLog& MessageLog)
 {
+	// validate nodes
 	for (const TPair<FGuid, UFlowNode*>& Node : Nodes)
 	{
-		if (Node.Value == nullptr || Node.Value->IsDataValid(ValidationErrors) == EDataValidationResult::Invalid)
+		if (Node.Value)
 		{
-			// refresh data if Node is missing, i.e. its class has been deleted
-			if (Node.Value == nullptr)
+			Node.Value->ValidationLog.Messages.Empty();
+			if (Node.Value->ValidateNode() == EDataValidationResult::Invalid)
 			{
-				HarvestNodeConnections();
+				MessageLog.Messages.Append(Node.Value->ValidationLog.Messages);
 			}
-
-			return EDataValidationResult::Invalid;
 		}
 	}
 
-	return EDataValidationResult::Valid;
+	return MessageLog.Messages.Num() > 0 ? EDataValidationResult::Invalid : EDataValidationResult::Valid;
 }
 
 TSharedPtr<IFlowGraphInterface> UFlowAsset::FlowGraphInterface = nullptr;
@@ -189,6 +190,21 @@ void UFlowAsset::HarvestNodeConnections()
 }
 #endif
 
+UFlowNode_Start* UFlowAsset::GetStartNode() const
+{
+	for (const TPair<FGuid, UFlowNode*>& Node : Nodes)
+	{
+		// there can be only one, automatically added while creating graph
+		if (UFlowNode_Start* TestedNode = Cast<UFlowNode_Start>(Node.Value))
+		{
+			return TestedNode;
+		}
+	}
+
+	// shouldn't ever get here, Start Node is a default node that can't be deleted by user
+	return nullptr;
+}
+
 void UFlowAsset::AddInstance(UFlowAsset* Instance)
 {
 	ActiveInstances.Add(Instance);
@@ -258,6 +274,16 @@ void UFlowAsset::SetInspectedInstance(const FName& NewInspectedInstanceName)
 	}
 
 	BroadcastDebuggerRefresh();
+}
+
+void UFlowAsset::BroadcastDebuggerRefresh() const
+{
+	RefreshDebuggerEvent.Broadcast();
+}
+
+void UFlowAsset::BroadcastRuntimeMessageAdded(const UFlowAsset* AssetInstance, const TSharedRef<FTokenizedMessage>& Message) const
+{
+	RuntimeMessageEvent.Broadcast(AssetInstance, Message);
 }
 #endif
 
@@ -474,6 +500,35 @@ UFlowAsset* UFlowAsset::GetParentInstance() const
 {
 	return NodeOwningThisAssetInstance.IsValid() ? NodeOwningThisAssetInstance.Get()->GetFlowAsset() : nullptr;
 }
+
+#if WITH_EDITOR
+void UFlowAsset::LogError(const FString& MessageToLog, UFlowNode* Node) const
+{
+	if (RuntimeLog.IsValid())
+	{
+		const TSharedRef<FTokenizedMessage> TokenizedMessage = RuntimeLog.Get()->Error(*MessageToLog, Node);
+		BroadcastRuntimeMessageAdded(this, TokenizedMessage);
+	}
+}
+
+void UFlowAsset::LogWarning(const FString& MessageToLog, UFlowNode* Node) const
+{
+	if (RuntimeLog.IsValid())
+	{
+		const TSharedRef<FTokenizedMessage> TokenizedMessage = RuntimeLog.Get()->Warning(*MessageToLog, Node);
+		BroadcastRuntimeMessageAdded(this, TokenizedMessage);
+	}
+}
+
+void UFlowAsset::LogNote(const FString& MessageToLog, UFlowNode* Node) const
+{
+	if (RuntimeLog.IsValid())
+	{
+		const TSharedRef<FTokenizedMessage> TokenizedMessage = RuntimeLog.Get()->Note(*MessageToLog, Node);
+		BroadcastRuntimeMessageAdded(this, TokenizedMessage);
+	}
+}
+#endif
 
 FFlowAssetSaveData UFlowAsset::SaveInstance(TArray<FFlowAssetSaveData>& SavedFlowInstances)
 {

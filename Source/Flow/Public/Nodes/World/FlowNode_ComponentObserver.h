@@ -41,8 +41,6 @@ protected:
 	TMap<TWeakObjectPtr<AActor>, TWeakObjectPtr<UFlowComponent>> RegisteredActors;
 
 protected:
-	virtual void PostLoad() override;
-
 	virtual void ExecuteInput(const FName& PinName) override;
 	virtual void OnLoad_Implementation() override;
 
@@ -72,10 +70,8 @@ protected:
 #if WITH_EDITOR
 public:
 	virtual FString GetNodeDescription() const override;
+	virtual EDataValidationResult ValidateNode() override;
+
 	virtual FString GetStatusString() const override;
 #endif
-
-private:
-	UPROPERTY()
-	FGameplayTag IdentityTag_DEPRECATED;
 };
