@@ -1,44 +1,63 @@
 // Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
 
 #include "Nodes/Route/FlowNode_CustomOutput.h"
-
 #include "FlowAsset.h"
-#include "Nodes/Route/FlowNode_SubGraph.h"
+#include "FlowSettings.h"
+
+#define LOCTEXT_NAMESPACE "FlowNode_CustomOutput"
 
 UFlowNode_CustomOutput::UFlowNode_CustomOutput(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-#if WITH_EDITOR
-	Category = TEXT("Route");
-	NodeStyle = EFlowNodeStyle::InOut;
-#endif
-
 	OutputPins.Empty();
-	AllowedSignalModes = {EFlowSignalMode::Enabled, EFlowSignalMode::Disabled};
 }
 
 void UFlowNode_CustomOutput::ExecuteInput(const FName& PinName)
 {
-	if (!EventName.IsNone() && GetFlowAsset()->GetCustomOutputs().Contains(EventName) && GetFlowAsset()->GetNodeOwningThisAssetInstance())
+	UFlowAsset* FlowAsset = GetFlowAsset();
+	check(IsValid(FlowAsset));
+
+	if (EventName.IsNone())
 	{
-		GetFlowAsset()->TriggerCustomOutput(EventName);
+		LogWarning(FString::Printf(TEXT("Attempted to trigger a CustomOutput (Node %s, Asset %s), with no EventName"),
+		                           *GetName(),
+		                           *FlowAsset->GetPathName()));
+	}
+	else if (!FlowAsset->GetCustomOutputs().Contains(EventName))
+	{
+		FString CustomOutputsString;
+		for (const FName& OutputName : FlowAsset->GetCustomOutputs())
+		{
+			if (!CustomOutputsString.IsEmpty())
+			{
+				CustomOutputsString += TEXT(", ");
+			}
+
+			CustomOutputsString += OutputName.ToString();
+		}
+
+		LogWarning(FString::Printf(TEXT("Attempted to trigger a CustomOutput (Node %s, Asset %s), with EventName %s, which is not a listed CustomOutput { %s }"),
+		                           *GetName(),
+		                           *FlowAsset->GetPathName(),
+		                           *EventName.ToString(),
+		                           *CustomOutputsString));
+	}
+	else
+	{
+		FlowAsset->TriggerCustomOutput(EventName);
 	}
 }
 
 #if WITH_EDITOR
-FString UFlowNode_CustomOutput::GetNodeDescription() const
+FText UFlowNode_CustomOutput::GetNodeTitle() const
 {
-	return EventName.ToString();
-}
-
-EDataValidationResult UFlowNode_CustomOutput::ValidateNode()
-{
-	if (EventName.IsNone())
+	if (!EventName.IsNone() && UFlowSettings::Get()->bUseAdaptiveNodeTitles)
 	{
-		ValidationLog.Error<UFlowNode>(TEXT("Event Name is empty!"), this);
-		return EDataValidationResult::Invalid;
+		return FText::Format(LOCTEXT("CustomOutputTitle", "{0} Output"), {FText::FromString(EventName.ToString())});
 	}
 
-	return EDataValidationResult::Valid;
+	return Super::GetNodeTitle();
 }
 #endif
+
+#undef LOCTEXT_NAMESPACE

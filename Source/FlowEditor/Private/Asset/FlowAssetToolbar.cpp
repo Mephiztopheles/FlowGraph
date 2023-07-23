@@ -11,6 +11,7 @@
 
 #include "Kismet2/DebuggerCommands.h"
 #include "Misc/Attribute.h"
+#include "Misc/MessageDialog.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "ToolMenu.h"
 #include "ToolMenuSection.h"
@@ -43,9 +44,9 @@ void SFlowAssetInstanceList::Construct(const FArguments& InArgs, const TWeakObje
 	// create dropdown
 	SAssignNew(Dropdown, SComboBox<TSharedPtr<FName>>)
 		.OptionsSource(&InstanceNames)
+		.Visibility_Static(&SFlowAssetInstanceList::GetDebuggerVisibility)
 		.OnGenerateWidget(this, &SFlowAssetInstanceList::OnGenerateWidget)
 		.OnSelectionChanged(this, &SFlowAssetInstanceList::OnSelectionChanged)
-		.Visibility_Static(&FFlowAssetEditor::GetDebuggerVisibility)
 		[
 			SNew(STextBlock)
 			.Text(this, &SFlowAssetInstanceList::GetSelectedInstanceName)
@@ -91,6 +92,11 @@ void SFlowAssetInstanceList::RefreshInstances()
 	}
 }
 
+EVisibility SFlowAssetInstanceList::GetDebuggerVisibility()
+{
+	return GEditor->PlayWorld ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
 TSharedRef<SWidget> SFlowAssetInstanceList::OnGenerateWidget(const TSharedPtr<FName> Item) const
 {
 	return SNew(STextBlock).Text(FText::FromName(*Item.Get()));
@@ -125,7 +131,7 @@ void SFlowAssetBreadcrumb::Construct(const FArguments& InArgs, const TWeakObject
 	// create breadcrumb
 	SAssignNew(BreadcrumbTrail, SBreadcrumbTrail<FFlowBreadcrumb>)
 		.OnCrumbClicked(this, &SFlowAssetBreadcrumb::OnCrumbClicked)
-		.Visibility_Static(&FFlowAssetEditor::GetDebuggerVisibility)
+		.Visibility_Static(&SFlowAssetInstanceList::GetDebuggerVisibility)
 		.ButtonStyle(FAppStyle::Get(), "FlatButton")
 		.DelimiterImage(FAppStyle::GetBrush("Sequencer.BreadcrumbIcon"))
 		.PersistentBreadcrumbs(true)
@@ -202,10 +208,6 @@ void FFlowAssetToolbar::BuildAssetToolbar(UToolMenu* ToolbarMenu) const
 		FToolMenuSection& Section = ToolbarMenu->AddSection("View");
 		Section.InsertPosition = FToolMenuInsert("FlowAsset", EToolMenuInsertType::After);
 
-#if ENABLE_SEARCH_IN_ASSET_EDITOR
-		Section.AddEntry(FToolMenuEntry::InitToolBarButton(FFlowToolbarCommands::Get().SearchInAsset));
-#endif
-
 		// Visual Diff: menu to choose asset revision compared with the current one 
 		Section.AddDynamicEntry("SourceControlCommands", FNewToolMenuSectionDelegate::CreateLambda([this](FToolMenuSection& InSection)
 		{
@@ -221,6 +223,12 @@ void FFlowAssetToolbar::BuildAssetToolbar(UToolMenu* ToolbarMenu) const
 			DiffEntry.StyleNameOverride = "CalloutToolbar";
 			InSection.AddEntry(DiffEntry);
 		}));
+
+#if ENABLE_SEARCH_IN_ASSET_EDITOR
+		Section.AddEntry(FToolMenuEntry::InitToolBarButton(FFlowToolbarCommands::Get().SearchInAsset));
+#endif
+
+		Section.AddEntry(FToolMenuEntry::InitToolBarButton(FFlowToolbarCommands::Get().EditAssetDefaults));
 	}
 }
 

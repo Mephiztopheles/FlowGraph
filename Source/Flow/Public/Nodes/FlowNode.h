@@ -3,7 +3,6 @@
 #pragma once
 
 #include "EdGraph/EdGraphNode.h"
-#include "Engine/StreamableManager.h"
 #include "GameplayTagContainer.h"
 #include "Templates/SubclassOf.h"
 #include "VisualLogger/VisualLoggerDebugSnapshotInterface.h"
@@ -15,6 +14,7 @@
 
 class UFlowAsset;
 class UFlowSubsystem;
+class IFlowOwnerInterface;
 
 #if WITH_EDITOR
 DECLARE_DELEGATE(FFlowNodeEvent);
@@ -44,7 +44,10 @@ private:
 #if WITH_EDITORONLY_DATA
 
 protected:
+	UPROPERTY()
 	TArray<TSubclassOf<UFlowAsset>> AllowedAssetClasses;
+
+	UPROPERTY()
 	TArray<TSubclassOf<UFlowAsset>> DeniedAssetClasses;
 
 	UPROPERTY()
@@ -52,6 +55,10 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "FlowNode")
 	EFlowNodeStyle NodeStyle;
+
+	// Set Node Style to custom to use your own color for this node
+	UPROPERTY(EditDefaultsOnly, Category = "FlowNode", meta = (EditCondition = "NodeStyle == EFlowNodeStyle::Custom"))
+	FLinearColor NodeColor;
 
 	uint8 bCanDelete : 1;
 	uint8 bCanDuplicate : 1;
@@ -93,7 +100,7 @@ public:
 	virtual FText GetNodeToolTip() const;
 
 	// This method allows to have different for every node instance, i.e. Red if node represents enemy, Green if node represents a friend
-	virtual bool GetDynamicTitleColor(FLinearColor& OutColor) const { return false; }
+	virtual bool GetDynamicTitleColor(FLinearColor& OutColor) const;
 
 	EFlowNodeStyle GetNodeStyle() const { return NodeStyle; }
 
@@ -117,7 +124,23 @@ public:
 	UFUNCTION(BlueprintPure, Category = "FlowNode")
 	UFlowAsset* GetFlowAsset() const;
 
+	// Gets the Owning Actor for this Node's RootFlow
+	// (if the immediate parent is an UActorComponent, it will get that Component's actor)
+	AActor* TryGetRootFlowActorOwner() const;
+
+	// Returns the IFlowOwnerInterface for the owner object (if implemented)
+	//  NOTE - will consider a UActorComponent owner's owning actor if appropriate
+	IFlowOwnerInterface* GetFlowOwnerInterface() const;
+
 protected:
+
+	// Helper functions for GetFlowOwnerInterface()
+	IFlowOwnerInterface* TryGetFlowOwnerInterfaceFromRootFlowOwner(UObject& RootFlowOwner, const UClass& ExpectedOwnerClass) const;
+	IFlowOwnerInterface* TryGetFlowOwnerInterfaceActor(UObject& RootFlowOwner, const UClass& ExpectedOwnerClass) const;
+
+	// Gets the Owning Object for this Node's RootFlow
+	UObject* TryGetRootFlowObjectOwner() const;
+
 	virtual bool CanFinishGraph() const { return false; }
 
 protected:
@@ -159,8 +182,8 @@ protected:
 	uint8 CountNumberedInputs() const;
 	uint8 CountNumberedOutputs() const;
 
-	TArray<FFlowPin> GetInputPins() const { return InputPins; }
-	TArray<FFlowPin> GetOutputPins() const { return OutputPins; }
+	const TArray<FFlowPin>& GetInputPins() const { return InputPins; }
+	const TArray<FFlowPin>& GetOutputPins() const { return OutputPins; }
 
 public:
 	UFUNCTION(BlueprintPure, Category = "FlowNode")
@@ -204,7 +227,9 @@ public:
 	void SetConnections(const TMap<FName, FConnectedPin>& InConnections) { Connections = InConnections; }
 	FConnectedPin GetConnection(const FName OutputName) const { return Connections.FindRef(OutputName); }
 
+	UFUNCTION(BlueprintPure, Category= "FlowNode")
 	TSet<UFlowNode*> GetConnectedNodes() const;
+	
 	FName GetPinConnectedToNode(const FGuid& OtherNodeGuid);
 
 	UFUNCTION(BlueprintPure, Category= "FlowNode")
@@ -212,8 +237,6 @@ public:
 
 	UFUNCTION(BlueprintPure, Category= "FlowNode")
 	bool IsOutputConnected(const FName& PinName) const;
-
-	static void RecursiveFindNodesByClass(UFlowNode* Node, const TSubclassOf<UFlowNode> Class, uint8 Depth, TArray<UFlowNode*>& OutNodes);
 
 //////////////////////////////////////////////////////////////////////////
 // Debugger
@@ -230,8 +253,6 @@ public:
 	bool bPreloaded;
 
 protected:
-	FStreamableManager StreamableManager;
-
 	UPROPERTY(SaveGame)
 	EFlowNodeState ActivationState;
 
@@ -317,6 +338,13 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "FlowNode", meta = (DisplayName = "Cleanup"))
 	void K2_Cleanup();
 
+	// Method called from UFlowAsset::DeinitializeInstance()
+	virtual void DeinitializeInstance();
+
+	// Event called from UFlowAsset::DeinitializeInstance()
+	UFUNCTION(BlueprintImplementableEvent, Category = "FlowNode", meta = (DisplayName = "DeinitializeInstance"))
+	void K2_DeinitializeInstance();
+
 public:
 	// Define what happens when node is terminated from the outside
 	virtual void ForceFinishNode();
@@ -329,8 +357,30 @@ protected:
 private:
 	void ResetRecords();
 
-#if WITH_EDITOR
+//////////////////////////////////////////////////////////////////////////
+// SaveGame support
 
+public:
+	UFUNCTION(BlueprintCallable, Category = "FlowNode")
+	void SaveInstance(FFlowNodeSaveData& NodeRecord);
+
+	UFUNCTION(BlueprintCallable, Category = "FlowNode")
+	void LoadInstance(const FFlowNodeSaveData& NodeRecord);
+
+protected:
+	UFUNCTION(BlueprintNativeEvent, Category = "FlowNode")
+	void OnSave();
+
+	UFUNCTION(BlueprintNativeEvent, Category = "FlowNode")
+	void OnLoad();
+
+	UFUNCTION(BlueprintNativeEvent, Category = "FlowNode")
+	void OnPassThrough();
+	
+//////////////////////////////////////////////////////////////////////////
+// Utils
+
+#if WITH_EDITOR
 public:
 	UFlowNode* GetInspectedInstance() const;
 
@@ -378,23 +428,6 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "FlowNode")
 	static FString GetProgressAsString(float Value);
-
-public:
-	UFUNCTION(BlueprintCallable, Category = "FlowNode")
-	void SaveInstance(FFlowNodeSaveData& NodeRecord);
-
-	UFUNCTION(BlueprintCallable, Category = "FlowNode")
-	void LoadInstance(const FFlowNodeSaveData& NodeRecord);
-
-protected:
-	UFUNCTION(BlueprintNativeEvent, Category = "FlowNode")
-	void OnSave();
-
-	UFUNCTION(BlueprintNativeEvent, Category = "FlowNode")
-	void OnLoad();
-
-	UFUNCTION(BlueprintNativeEvent, Category = "FlowNode")
-	void OnPassThrough();
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "FlowNode", meta = (DevelopmentOnly))

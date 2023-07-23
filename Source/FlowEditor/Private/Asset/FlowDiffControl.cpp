@@ -5,7 +5,9 @@
 
 #include "FlowAsset.h"
 
+#include "EdGraph/EdGraph.h"
 #include "GraphDiffControl.h"
+#include "Launch/Resources/Version.h"
 #include "SBlueprintDiff.h"
 
 #define LOCTEXT_NAMESPACE "SFlowDiffControl"
@@ -14,14 +16,18 @@
 /// FFlowAssetDiffControl
 
 FFlowAssetDiffControl::FFlowAssetDiffControl(const UFlowAsset* InOldFlowAsset, const UFlowAsset* InNewFlowAsset, FOnDiffEntryFocused InSelectionCallback)
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 2
 	: TDetailsDiffControl(InOldFlowAsset, InNewFlowAsset, InSelectionCallback)
+#else
+	: FDetailsDiffControl(InOldFlowAsset, InNewFlowAsset, InSelectionCallback, false)
+#endif
 {
 }
 
 // TDetailsDiffControl::GenerateTreeEntries + "NoDifferences" entry + category label
 void FFlowAssetDiffControl::GenerateTreeEntries(TArray<TSharedPtr<FBlueprintDifferenceTreeEntry>>& OutTreeEntries, TArray<TSharedPtr<FBlueprintDifferenceTreeEntry>>& OutRealDifferences)
 {
-	TDetailsDiffControl::GenerateTreeEntries(OutTreeEntries, OutRealDifferences);
+	FDetailsDiffControl::GenerateTreeEntries(OutTreeEntries, OutRealDifferences);
 
 	const bool bHasDifferences = Children.Num() != 0;
 	if (!bHasDifferences)

@@ -5,6 +5,7 @@
 #include "FlowAsset.h"
 #include "FlowModule.h"
 #include "FlowSubsystem.h"
+#include "Launch/Resources/Version.h"
 #include "LevelSequence/FlowLevelSequencePlayer.h"
 #include "MovieScene/MovieSceneFlowTrack.h"
 #include "MovieScene/MovieSceneFlowTriggerSection.h"
@@ -37,6 +38,8 @@ UFlowNode_PlayLevelSequence::UFlowNode_PlayLevelSequence(const FObjectInitialize
 
 	InputPins.Empty();
 	InputPins.Add(FFlowPin(TEXT("Start")));
+	InputPins.Add(FFlowPin(TEXT("Pause")));
+	InputPins.Add(FFlowPin(TEXT("Resume")));
 	InputPins.Add(FFlowPin(TEXT("Stop")));
 
 	OutputPins.Add(FFlowPin(TEXT("PreStart")));
@@ -58,7 +61,11 @@ TArray<FFlowPin> UFlowNode_PlayLevelSequence::GetContextOutputs()
 	Sequence = Sequence.LoadSynchronous();
 	if (Sequence && Sequence->GetMovieScene())
 	{
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 2
 		for (const UMovieSceneTrack* Track : Sequence->GetMovieScene()->GetMasterTracks())
+#else
+		for (const UMovieSceneTrack* Track : Sequence->GetMovieScene()->GetTracks())
+#endif
 		{
 			if (Track->GetClass() == UMovieSceneFlowTrack::StaticClass())
 			{
@@ -132,21 +139,7 @@ void UFlowNode_PlayLevelSequence::CreatePlayer()
 	{
 		ALevelSequenceActor* SequenceActor;
 
-		AActor* OwningActor = nullptr;
-		if (GetFlowAsset())
-		{
-			if (UObject* RootFlowOwner = GetFlowAsset()->GetOwner())
-			{
-				OwningActor = Cast<AActor>(RootFlowOwner); // in case Root Flow was created directly from some actor
-				if (OwningActor == nullptr)
-				{
-					if (const UActorComponent* OwningComponent = Cast<UActorComponent>(RootFlowOwner))
-					{
-						OwningActor = OwningComponent->GetOwner();
-					}
-				}
-			}
-		}
+		AActor* OwningActor = TryGetRootFlowActorOwner();
 
 		// Apply AActor::CustomTimeDilation from owner of the Root Flow
 		if (IsValid(OwningActor))
@@ -205,6 +198,14 @@ void UFlowNode_PlayLevelSequence::ExecuteInput(const FName& PinName)
 	else if (PinName == TEXT("Stop"))
 	{
 		StopPlayback();
+	}
+	else if (PinName == TEXT("Pause"))
+	{
+		SequencePlayer->Pause();
+	}
+	else if (PinName == TEXT("Resume") && SequencePlayer->IsPaused())
+	{
+		SequencePlayer->Play();
 	}
 }
 
@@ -284,7 +285,10 @@ void UFlowNode_PlayLevelSequence::Cleanup()
 	{
 		SequencePlayer->SetFlowEventReceiver(nullptr);
 		SequencePlayer->OnFinished.RemoveAll(this);
-		SequencePlayer->Stop();
+		if (!PlaybackSettings.bPauseAtEnd)
+		{
+			SequencePlayer->Stop();
+		}
 		SequencePlayer = nullptr;
 	}
 
