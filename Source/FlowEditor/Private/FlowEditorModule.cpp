@@ -4,29 +4,29 @@
 #include "FlowEditorStyle.h"
 
 #include "Asset/AssetTypeActions_FlowAsset.h"
-#include "Asset/FlowAssetDetails.h"
 #include "Asset/FlowAssetEditor.h"
+#include "Asset/FlowAssetIndexer.h"
 #include "Graph/FlowGraphConnectionDrawingPolicy.h"
 #include "Graph/FlowGraphSettings.h"
-#include "LevelEditor/SLevelEditorFlow.h"
+#include "Utils/SLevelEditorFlow.h"
 #include "MovieScene/FlowTrackEditor.h"
 #include "Nodes/AssetTypeActions_FlowNodeBlueprint.h"
-#include "Nodes/Customizations/FlowNode_Details.h"
-#include "Nodes/Customizations/FlowNode_ComponentObserverDetails.h"
-#include "Nodes/Customizations/FlowNode_CustomInputDetails.h"
-#include "Nodes/Customizations/FlowNode_CustomOutputDetails.h"
-#include "Nodes/Customizations/FlowNode_PlayLevelSequenceDetails.h"
 #include "Pins/SFlowInputPinHandle.h"
 #include "Pins/SFlowOutputPinHandle.h"
 
-#include "FlowEditorDefines.h"
-#if ENABLE_FLOW_SEARCH
-#include "Asset/FlowAssetIndexer.h"
-#endif
+#include "DetailCustomizations/FlowAssetDetails.h"
+#include "DetailCustomizations/FlowNode_Details.h"
+#include "DetailCustomizations/FlowNode_ComponentObserverDetails.h"
+#include "DetailCustomizations/FlowNode_CustomInputDetails.h"
+#include "DetailCustomizations/FlowNode_CustomOutputDetails.h"
+#include "DetailCustomizations/FlowNode_PlayLevelSequenceDetails.h"
+#include "DetailCustomizations/FlowOwnerFunctionRefCustomization.h"
+#include "DetailCustomizations/FlowNode_SubGraphDetails.h"
 
 #include "FlowAsset.h"
 #include "Nodes/Route/FlowNode_CustomInput.h"
 #include "Nodes/Route/FlowNode_CustomOutput.h"
+#include "Nodes/Route/FlowNode_SubGraph.h"
 #include "Nodes/World/FlowNode_ComponentObserver.h"
 #include "Nodes/World/FlowNode_PlayLevelSequence.h"
 
@@ -34,7 +34,7 @@
 #include "EdGraphUtilities.h"
 #include "IAssetSearchModule.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "ISequencerChannelInterface.h"
+#include "ISequencerChannelInterface.h" // ignore Rider's false "unused include" warning
 #include "ISequencerModule.h"
 #include "LevelEditor.h"
 #include "Modules/ModuleManager.h"
@@ -71,18 +71,7 @@ void FFlowEditorModule::StartupModule()
 	ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>("Sequencer");
 	FlowTrackCreateEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FFlowTrackEditor::CreateTrackEditor));
 
-	RegisterPropertyCustomizations();
-
-	// register detail customizations
-	RegisterCustomClassLayout(UFlowAsset::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FFlowAssetDetails::MakeInstance));
-	RegisterCustomClassLayout(UFlowNode::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FFlowNode_Details::MakeInstance));
-	RegisterCustomClassLayout(UFlowNode_ComponentObserver::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FFlowNode_ComponentObserverDetails::MakeInstance));
-	RegisterCustomClassLayout(UFlowNode_CustomInput::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FFlowNode_CustomInputDetails::MakeInstance));
-	RegisterCustomClassLayout(UFlowNode_CustomOutput::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FFlowNode_CustomOutputDetails::MakeInstance));
-	RegisterCustomClassLayout(UFlowNode_PlayLevelSequence::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FFlowNode_PlayLevelSequenceDetails::MakeInstance));
-
-	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyModule.NotifyCustomizationModuleChanged();
+	RegisterDetailCustomizations();
 
 	// register asset indexers
 	if (FModuleManager::Get().IsModuleLoaded(AssetSearchModuleName))
@@ -96,25 +85,13 @@ void FFlowEditorModule::ShutdownModule()
 {
 	FFlowEditorStyle::Shutdown();
 
+	UnregisterDetailCustomizations();
+
 	UnregisterAssets();
 
 	// unregister track editors
 	ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>("Sequencer");
 	SequencerModule.UnRegisterTrackEditor(FlowTrackCreateEditorHandle);
-
-	// unregister details customizations
-	if (FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
-	{
-		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-
-		for (auto It = CustomClassLayouts.CreateConstIterator(); It; ++It)
-		{
-			if (It->IsValid())
-			{
-				PropertyModule.UnregisterCustomClassLayout(*It);
-			}
-		}
-	}
 
 	FModuleManager::Get().OnModulesChanged().Remove(ModulesChangedHandle);
 }
@@ -171,26 +148,76 @@ void FFlowEditorModule::UnregisterAssets()
 	RegisteredAssetActions.Empty();
 }
 
-void FFlowEditorModule::RegisterPropertyCustomizations() const
-{
-	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-
-	// notify on customization change
-	PropertyModule.NotifyCustomizationModuleChanged();
-}
-
 void FFlowEditorModule::RegisterCustomClassLayout(const TSubclassOf<UObject> Class, const FOnGetDetailCustomizationInstance DetailLayout)
 {
 	if (Class)
 	{
-		CustomClassLayouts.Add(Class->GetFName());
-
 		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		PropertyModule.RegisterCustomClassLayout(Class->GetFName(), DetailLayout);
+
+		CustomClassLayouts.Add(Class->GetFName());
 	}
 }
 
-void FFlowEditorModule::ModulesChangesCallback(FName ModuleName, EModuleChangeReason ReasonForChange)
+void FFlowEditorModule::RegisterCustomStructLayout(const UScriptStruct& Struct, const FOnGetPropertyTypeCustomizationInstance DetailLayout)
+{
+	if (FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
+	{
+		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+		PropertyModule.RegisterCustomPropertyTypeLayout(Struct.GetFName(), DetailLayout);
+
+		CustomStructLayouts.Add(Struct.GetFName());
+	}
+}
+
+void FFlowEditorModule::RegisterDetailCustomizations()
+{
+	// register detail customizations
+	if (FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
+	{
+		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+		RegisterCustomClassLayout(UFlowAsset::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FFlowAssetDetails::MakeInstance));
+		RegisterCustomClassLayout(UFlowNode::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FFlowNode_Details::MakeInstance));
+		RegisterCustomClassLayout(UFlowNode_ComponentObserver::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FFlowNode_ComponentObserverDetails::MakeInstance));
+		RegisterCustomClassLayout(UFlowNode_CustomInput::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FFlowNode_CustomInputDetails::MakeInstance));
+		RegisterCustomClassLayout(UFlowNode_CustomOutput::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FFlowNode_CustomOutputDetails::MakeInstance));
+		RegisterCustomClassLayout(UFlowNode_PlayLevelSequence::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FFlowNode_PlayLevelSequenceDetails::MakeInstance));
+    RegisterCustomClassLayout(UFlowNode_SubGraph::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FFlowNode_SubGraphDetails::MakeInstance));
+		RegisterCustomStructLayout(*FFlowOwnerFunctionRef::StaticStruct(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FFlowOwnerFunctionRefCustomization::MakeInstance));
+
+		PropertyModule.NotifyCustomizationModuleChanged();
+	}
+}
+
+void FFlowEditorModule::UnregisterDetailCustomizations()
+{
+	// unregister details customizations
+	if (FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
+	{
+		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+		for (auto It = CustomClassLayouts.CreateConstIterator(); It; ++It)
+		{
+			if (It->IsValid())
+			{
+				PropertyModule.UnregisterCustomClassLayout(*It);
+			}
+		}
+
+		for (auto It = CustomStructLayouts.CreateConstIterator(); It; ++It)
+		{
+			if (It->IsValid())
+			{
+				PropertyModule.UnregisterCustomPropertyTypeLayout(*It);
+			}
+		}
+
+		PropertyModule.NotifyCustomizationModuleChanged();
+	}
+}
+
+void FFlowEditorModule::ModulesChangesCallback(const FName ModuleName, const EModuleChangeReason ReasonForChange) const
 {
 	if (ReasonForChange == EModuleChangeReason::ModuleLoaded && ModuleName == AssetSearchModuleName)
 	{
@@ -200,13 +227,7 @@ void FFlowEditorModule::ModulesChangesCallback(FName ModuleName, EModuleChangeRe
 
 void FFlowEditorModule::RegisterAssetIndexers() const
 {
-	/**
-	 * Documentation: https://github.com/MothCocoon/FlowGraph/wiki/Asset-Search
-	 * Set macro value to 1, if you made these changes to the engine: https://github.com/EpicGames/UnrealEngine/pull/9070
-	 */
-#if ENABLE_FLOW_SEARCH
 	IAssetSearchModule::Get().RegisterAssetIndexer(UFlowAsset::StaticClass(), MakeUnique<FFlowAssetIndexer>());
-#endif
 }
 
 void FFlowEditorModule::CreateFlowToolbar(FToolBarBuilder& ToolbarBuilder) const

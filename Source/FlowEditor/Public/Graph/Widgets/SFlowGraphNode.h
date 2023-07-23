@@ -33,7 +33,7 @@ protected:
 	virtual void GetOverlayBrushes(bool bSelected, const FVector2D WidgetSize, TArray<FOverlayBrushInfo>& Brushes) const override;
 	// --
 
-	virtual void GetPinBrush(const bool bLeftSide, const float WidgetWidth, const int32 PinIndex, const FFlowBreakpoint& Breakpoint, TArray<FOverlayBrushInfo>& Brushes) const;
+	virtual void GetPinBrush(const bool bLeftSide, const float WidgetWidth, const int32 PinIndex, const FFlowPinTrait& Breakpoint, TArray<FOverlayBrushInfo>& Brushes) const;
 
 	// SGraphNode
 	virtual void UpdateGraphNode() override;
@@ -43,7 +43,7 @@ protected:
 	virtual TSharedRef<SWidget> CreateNodeContentArea() override;
 	virtual const FSlateBrush* GetNodeBodyBrush() const override;
 
-	// purposely overriden non-virtual methods, avoiding engine modification
+	// purposely overriden non-virtual methods, added PR #9791 to made these methods virtual: https://github.com/EpicGames/UnrealEngine/pull/9791
 	FSlateColor GetNodeTitleColor() const;
 	FSlateColor GetNodeBodyColor() const;
 	FSlateColor GetNodeTitleIconColor() const;

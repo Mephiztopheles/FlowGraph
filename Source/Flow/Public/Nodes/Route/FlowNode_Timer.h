@@ -9,12 +9,13 @@
 /**
  * Triggers outputs after time elapsed
  */
-UCLASS(NotBlueprintable, meta = (DisplayName = "Timer"))
+UCLASS(NotBlueprintable, meta = (DisplayName = "Timer", Keywords = "delay, step, tick"))
 class FLOW_API UFlowNode_Timer : public UFlowNode
 {
 	GENERATED_UCLASS_BODY()
 
 protected:
+	// If the value is closer to 0, Timer will complete in next tick
 	UPROPERTY(EditAnywhere, Category = "Timer", meta = (ClampMin = 0.0f))
 	float CompletionTime;
 

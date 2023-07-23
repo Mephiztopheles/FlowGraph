@@ -21,7 +21,7 @@ struct FLOW_API FFlowPin
 	FString PinToolTip;
 
 	static inline FName AnyPinName = TEXT("AnyPinName");
-	
+
 	FFlowPin()
 		: PinName(NAME_None)
 	{
@@ -59,21 +59,20 @@ struct FLOW_API FFlowPin
 
 	FFlowPin(const FStringView InPinName, const FText& InPinFriendlyName)
 		: PinName(InPinName)
-		  , PinFriendlyName(InPinFriendlyName)
+		, PinFriendlyName(InPinFriendlyName)
 	{
 	}
 
 	FFlowPin(const FStringView InPinName, const FString& InPinTooltip)
 		: PinName(InPinName)
-		  , PinToolTip(InPinTooltip)
-	
+		, PinToolTip(InPinTooltip)
 	{
 	}
 
 	FFlowPin(const FStringView InPinName, const FText& InPinFriendlyName, const FString& InPinTooltip)
 		: PinName(InPinName)
 		, PinFriendlyName(InPinFriendlyName)
-		  , PinToolTip(InPinTooltip)
+		, PinToolTip(InPinTooltip)
 	{
 	}
 
@@ -234,13 +233,13 @@ struct FLOW_API FConnectedPin
 
 	FConnectedPin()
 		: NodeGuid(FGuid())
-		  , PinName(NAME_None)
+		, PinName(NAME_None)
 	{
 	}
 
 	FConnectedPin(const FGuid InNodeId, const FName& InPinName)
 		: NodeGuid(InNodeId)
-		  , PinName(InPinName)
+	    , PinName(InPinName)
 	{
 	}
 
@@ -295,3 +294,47 @@ private:
 	FORCEINLINE static FString DoubleDigit(const int32 Number);
 };
 #endif
+
+// It can represent any trait added on the specific node instance, i.e. breakpoint
+USTRUCT()
+struct FLOW_API FFlowPinTrait
+{
+	GENERATED_USTRUCT_BODY()
+
+protected:	
+	UPROPERTY()
+	uint8 bTraitAllowed : 1;
+
+	uint8 bEnabled : 1;
+	uint8 bHit : 1;
+
+public:
+	FFlowPinTrait()
+		: bTraitAllowed(false)
+		, bEnabled(false)
+		, bHit(false)
+	{
+	};
+
+	explicit FFlowPinTrait(const bool bInitialState)
+		: bTraitAllowed(bInitialState)
+		, bEnabled(bInitialState)
+		, bHit(false)
+	{
+	};
+
+	void AllowTrait();
+	void DisallowTrait();
+	bool IsAllowed() const;
+
+	void EnableTrait();
+	void DisableTrait();
+	void ToggleTrait();
+
+	bool CanEnable() const;
+	bool IsEnabled() const;
+
+	void MarkAsHit();
+	void ResetHit();
+	bool IsHit() const;
+};

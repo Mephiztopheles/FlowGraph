@@ -9,7 +9,6 @@
 #include "FlowAsset.h"
 #include "Nodes/FlowNode.h"
 
-#include "EditorStyleSet.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Styling/CoreStyle.h"
 #include "Styling/SlateBrush.h"
@@ -47,7 +46,7 @@ void SFlowPaletteItem::Construct(const FArguments& InArgs, FCreateWidgetForActio
 	}
 
 	// Find icons
-	const FSlateBrush* IconBrush = FEditorStyle::GetBrush(TEXT("NoBrush"));
+	const FSlateBrush* IconBrush = FAppStyle::GetBrush(TEXT("NoBrush"));
 	const FSlateColor IconColor = FSlateColor::UseForeground();
 	const FText IconToolTip = GraphAction->GetTooltipDescription();
 	constexpr bool bIsReadOnly = false;
@@ -101,7 +100,7 @@ FText SFlowPaletteItem::GetItemTooltip() const
 
 void SFlowPalette::Construct(const FArguments& InArgs, TWeakPtr<FFlowAssetEditor> InFlowAssetEditor)
 {
-	FlowAssetEditorPtr = InFlowAssetEditor;
+	FlowAssetEditor = InFlowAssetEditor;
 
 	UpdateCategoryNames();
 	UFlowGraphSchema::OnNodeListChanged.AddSP(this, &SFlowPalette::Refresh);
@@ -110,7 +109,7 @@ void SFlowPalette::Construct(const FArguments& InArgs, TWeakPtr<FFlowAssetEditor
 	[
 		SNew(SBorder)
 			.Padding(2.0f)
-			.BorderImage(FEditorStyle::GetBrush("ToolPanel.GroupBorder"))
+			.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
 			[
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot() // Filter UI
@@ -183,13 +182,8 @@ TSharedRef<SWidget> SFlowPalette::OnCreateWidgetForAction(FCreateWidgetForAction
 
 void SFlowPalette::CollectAllActions(FGraphActionListBuilderBase& OutAllActions)
 {
-	const UClass* AssetClass = UFlowAsset::StaticClass();
-	
-	const TSharedPtr<FFlowAssetEditor> FlowAssetEditor = FlowAssetEditorPtr.Pin();
-	if (FlowAssetEditor && FlowAssetEditor->GetFlowAsset())
-	{
-		AssetClass = FlowAssetEditor->GetFlowAsset()->GetClass();
-	}
+	ensureAlways(FlowAssetEditor.Pin() && FlowAssetEditor.Pin()->GetFlowAsset());
+	const UClass* AssetClass = FlowAssetEditor.Pin()->GetFlowAsset()->GetClass();
 	
 	FGraphActionMenuBuilder ActionMenuBuilder;
 	UFlowGraphSchema::GetPaletteActions(ActionMenuBuilder, AssetClass, GetFilterCategoryName());
@@ -215,11 +209,7 @@ void SFlowPalette::OnActionSelected(const TArray<TSharedPtr<FEdGraphSchemaAction
 {
 	if (InSelectionType == ESelectInfo::OnMouseClick || InSelectionType == ESelectInfo::OnKeyPress || InSelectionType == ESelectInfo::OnNavigation || InActions.Num() == 0)
 	{
-		const TSharedPtr<FFlowAssetEditor> FlowAssetEditor = FlowAssetEditorPtr.Pin();
-		if (FlowAssetEditor)
-		{
-			FlowAssetEditor->SetUISelectionState(FFlowAssetEditor::PaletteTab);
-		}
+		FlowAssetEditor.Pin()->SetUISelectionState(FFlowAssetEditor::PaletteTab);
 	}
 }
 

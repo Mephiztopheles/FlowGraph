@@ -11,39 +11,9 @@
 #include "FlowGraphNode.generated.h"
 
 class UEdGraphSchema;
-
 class UFlowNode;
 
-USTRUCT()
-struct FLOWEDITOR_API FFlowBreakpoint
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY()
-	bool bHasBreakpoint;
-
-	bool bBreakpointEnabled;
-	bool bBreakpointHit;
-
-	FFlowBreakpoint()
-	{
-		bHasBreakpoint = false;
-		bBreakpointEnabled = false;
-		bBreakpointHit = false;
-	};
-
-	void AddBreakpoint();
-	void RemoveBreakpoint();
-	bool HasBreakpoint() const;
-
-	void EnableBreakpoint();
-	bool CanEnableBreakpoint() const;
-
-	void DisableBreakpoint();
-	bool IsBreakpointEnabled() const;
-
-	void ToggleBreakpoint();
-};
+DECLARE_DELEGATE(FFlowGraphNodeEvent);
 
 DECLARE_DELEGATE(FFlowGraphNodeEvent);
 
@@ -72,7 +42,9 @@ public:
 	UPROPERTY()
 	TArray<TSubclassOf<UFlowNode>> AssignedNodeClasses;
 	
-	void SetFlowNode(UFlowNode* InFlowNode);
+	void SetNodeTemplate(UFlowNode* InFlowNode);
+	const UFlowNode* GetNodeTemplate() const;
+
 	UFlowNode* GetFlowNode() const;
 
 	// UObject
@@ -96,12 +68,15 @@ private:
 
 	void OnExternalChange();
 
+public:
+	virtual void OnGraphRefresh();
+
 //////////////////////////////////////////////////////////////////////////
 // Graph node
 
 public:
 	UPROPERTY()
-	FFlowBreakpoint NodeBreakpoint;
+	FFlowPinTrait NodeBreakpoint;
 
 	// UEdGraphNode
 	virtual bool CanCreateUnderSpecifiedSchema(const UEdGraphSchema* Schema) const override;
@@ -174,7 +149,7 @@ public:
 	TArray<UEdGraphPin*> OutputPins;
 
 	UPROPERTY()
-	TMap<FEdGraphPinReference, FFlowBreakpoint> PinBreakpoints;
+	TMap<FEdGraphPinReference, FFlowPinTrait> PinBreakpoints;
 
 	void CreateInputPin(const FFlowPin& FlowPin, const int32 Index = INDEX_NONE);
 	void CreateOutputPin(const FFlowPin& FlowPin, const int32 Index = INDEX_NONE);

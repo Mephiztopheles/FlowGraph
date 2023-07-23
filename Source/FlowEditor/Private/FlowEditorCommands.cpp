@@ -1,14 +1,13 @@
 // Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
 
 #include "FlowEditorCommands.h"
-
 #include "FlowEditorStyle.h"
 #include "Graph/FlowGraphSchema_Actions.h"
 
 #include "Nodes/FlowNode.h"
 
-#include "EditorStyleSet.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Styling/AppStyle.h"
 
 #define LOCTEXT_NAMESPACE "FlowGraphCommands"
 
@@ -19,12 +18,17 @@ FFlowToolbarCommands::FFlowToolbarCommands()
 
 void FFlowToolbarCommands::RegisterCommands()
 {
-	UI_COMMAND(RefreshAsset, "Refresh Asset", "Refresh asset and all nodes", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(RefreshAsset, "Refresh", "Refresh asset and all nodes", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(ValidateAsset, "Validate", "Validate asset and all nodes", EUserInterfaceActionType::Button, FInputChord());
+
+	UI_COMMAND(SearchInAsset, "Search", "Search in the current Flow Graph", EUserInterfaceActionType::Button, FInputChord(EModifierKey::Control | EModifierKey::Shift, EKeys::F));
+	UI_COMMAND(EditAssetDefaults, "Asset Defaults", "Edit the FlowAsset default properties", EUserInterfaceActionType::Button, FInputChord());
+	
 	UI_COMMAND(GoToParentInstance, "Go To Parent", "Open editor for the Flow Asset that created this Flow instance", EUserInterfaceActionType::Button, FInputChord());
 }
 
 FFlowGraphCommands::FFlowGraphCommands()
-	: TCommands<FFlowGraphCommands>("FlowGraph", LOCTEXT("FlowGraph", "Flow Graph"), NAME_None, FEditorStyle::GetStyleSetName())
+	: TCommands<FFlowGraphCommands>("FlowGraph", LOCTEXT("FlowGraph", "Flow Graph"), NAME_None, FAppStyle::GetAppStyleSetName())
 {
 }
 
@@ -53,7 +57,7 @@ void FFlowGraphCommands::RegisterCommands()
 }
 
 FFlowSpawnNodeCommands::FFlowSpawnNodeCommands()
-	: TCommands<FFlowSpawnNodeCommands>(TEXT("FFlowSpawnNodeCommands"), LOCTEXT("FlowGraph_SpawnNodes", "Flow Graph - Spawn Nodes"), NAME_None, FEditorStyle::GetStyleSetName())
+	: TCommands<FFlowSpawnNodeCommands>(TEXT("FFlowSpawnNodeCommands"), LOCTEXT("FlowGraph_SpawnNodes", "Flow Graph - Spawn Nodes"), NAME_None, FAppStyle::GetAppStyleSetName())
 {
 }
 
@@ -71,7 +75,7 @@ void FFlowSpawnNodeCommands::RegisterCommands()
 		FString ClassName;
 		if (FParse::Value(*NodeSpawns[x], TEXT("Class="), ClassName))
 		{
-			UClass* FoundClass = FindObject<UClass>(ANY_PACKAGE, *ClassName, true);
+			UClass* FoundClass = FindFirstObject<UClass>(*ClassName, EFindFirstObjectOptions::ExactClass, ELogVerbosity::Warning, TEXT("looking for SpawnNodes"));
 			if (FoundClass && FoundClass->IsChildOf(UFlowNode::StaticClass()))
 			{
 				NodeClass = FoundClass;
@@ -119,13 +123,13 @@ void FFlowSpawnNodeCommands::RegisterCommands()
 		const FText CommandLabelText = FText::FromString(NodeClass->GetName());
 		const FText Description = FText::Format(LOCTEXT("NodeSpawnDescription", "Hold down the bound keys and left click in the graph panel to spawn a {0} node."), CommandLabelText);
 
-		FUICommandInfo::MakeCommandInfo(this->AsShared(), CommandInfo, FName(*NodeSpawns[x]), CommandLabelText, Description, FSlateIcon(FEditorStyle::GetStyleSetName(), *FString::Printf(TEXT("%s.%s"), *this->GetContextName().ToString(), *NodeSpawns[x])), EUserInterfaceActionType::Button, Chord);
+		FUICommandInfo::MakeCommandInfo(this->AsShared(), CommandInfo, FName(*NodeSpawns[x]), CommandLabelText, Description, FSlateIcon(FAppStyle::GetAppStyleSetName(), *FString::Printf(TEXT("%s.%s"), *this->GetContextName().ToString(), *NodeSpawns[x])), EUserInterfaceActionType::Button, Chord);
 
 		NodeCommands.Add(NodeClass, CommandInfo);
 	}
 }
 
-TSharedPtr<const FInputChord> FFlowSpawnNodeCommands::GetChordByClass(UClass* NodeClass) const
+TSharedPtr<const FInputChord> FFlowSpawnNodeCommands::GetChordByClass(const UClass* NodeClass) const
 {
 	if (NodeCommands.Contains(NodeClass) && NodeCommands[NodeClass]->GetFirstValidChord()->IsValidChord())
 	{
@@ -135,7 +139,7 @@ TSharedPtr<const FInputChord> FFlowSpawnNodeCommands::GetChordByClass(UClass* No
 	return nullptr;
 }
 
-TSharedPtr<FEdGraphSchemaAction> FFlowSpawnNodeCommands::GetActionByChord(FInputChord& InChord) const
+TSharedPtr<FEdGraphSchemaAction> FFlowSpawnNodeCommands::GetActionByChord(const FInputChord& InChord) const
 {
 	if (InChord.IsValidChord())
 	{

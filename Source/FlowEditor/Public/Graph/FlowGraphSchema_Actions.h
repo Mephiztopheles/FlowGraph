@@ -29,19 +29,19 @@ struct FLOWEDITOR_API FFlowGraphSchemaAction_NewNode : public FEdGraphSchemaActi
 
 	FFlowGraphSchemaAction_NewNode()
 		: FEdGraphSchemaAction()
-		  , NodeClass(nullptr)
+		, NodeClass(nullptr)
 	{
 	}
 
 	FFlowGraphSchemaAction_NewNode(UClass* Node)
 		: FEdGraphSchemaAction()
-		  , NodeClass(Node)
+		, NodeClass(Node)
 	{
 	}
 
 	FFlowGraphSchemaAction_NewNode(const UFlowNode* Node)
 		: FEdGraphSchemaAction(FText::FromString(Node->GetNodeCategory()), Node->GetNodeTitle(), Node->GetNodeToolTip(), 0, FText::FromString(Node->GetClass()->GetMetaData("Keywords")))
-		  , NodeClass(Node->GetClass())
+		, NodeClass(Node->GetClass())
 	{
 	}
 
@@ -51,6 +51,7 @@ struct FLOWEDITOR_API FFlowGraphSchemaAction_NewNode : public FEdGraphSchemaActi
 
 	static UFlowGraphNode* CreateNode(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const UClass* NodeClass, const FVector2D Location, const bool bSelectNewNode = true);
 	static UFlowGraphNode* RecreateNode(UEdGraph* ParentGraph, UEdGraphNode* OldInstance, UFlowNode* FlowNode);
+	static UFlowGraphNode* ImportNode(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const UClass* NodeClass, const FGuid& NodeGuid, const FVector2D Location);
 };
 
 /** Action to paste clipboard contents into the graph */

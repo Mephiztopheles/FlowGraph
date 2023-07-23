@@ -16,7 +16,7 @@ enum class EFlowNodeDoubleClickTarget : uint8
  *
  */
 UCLASS(Config = EditorPerProjectUserSettings, meta = (DisplayName = "Flow Graph"))
-class UFlowGraphEditorSettings final : public UDeveloperSettings
+class FLOWEDITOR_API UFlowGraphEditorSettings : public UDeveloperSettings
 {
 	GENERATED_UCLASS_BODY()
 
@@ -29,6 +29,14 @@ class UFlowGraphEditorSettings final : public UDeveloperSettings
 	// Displays information on the graph node, either C++ class name or path to blueprint asset
 	UPROPERTY(config, EditAnywhere, Category = "Nodes")
 	bool bShowNodeClass;
+
+	// Shows the node description when you play in editor
+	UPROPERTY(config, EditAnywhere, Category = "Nodes")
+	bool bShowNodeDescriptionWhilePlaying;
+
+	// Pin names will will be displayed in a format that is easier to read, even if PinFriendlyName wasn't set
+	UPROPERTY(EditAnywhere, config, Category = "Nodes")
+	bool bEnforceFriendlyPinNames;
 
 	// Renders preview of entire graph while hovering over 
 	UPROPERTY(config, EditAnywhere, Category = "Nodes")
@@ -45,4 +53,8 @@ class UFlowGraphEditorSettings final : public UDeveloperSettings
 
 	UPROPERTY(EditAnywhere, config, Category = "Wires")
 	bool bHighlightOutputWiresOfSelectedNodes;
+
+public:
+	virtual FName GetCategoryName() const override { return FName("Flow Graph"); }
+	virtual FText GetSectionText() const override { return INVTEXT("User Settings"); }
 };

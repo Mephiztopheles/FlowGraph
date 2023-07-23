@@ -1,24 +1,22 @@
 // Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
 
-/**
- * Documentation: https://github.com/MothCocoon/FlowGraph/wiki/Visual-Diff
- * Set macro value to 1, if you made these changes to the engine: https://github.com/EpicGames/UnrealEngine/pull/9659
- */
-
 #include "Asset/SFlowDiff.h"
-
-#if ENABLE_FLOW_DIFF
 #include "Asset/FlowDiffControl.h"
 
 #include "FlowAsset.h"
 
 #include "EdGraphUtilities.h"
+#include "Editor.h"
 #include "Framework/Commands/GenericCommands.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Framework/MultiBox/MultiBoxDefs.h"
 #include "GraphDiffControl.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "Internationalization/Text.h"
 #include "SBlueprintDiff.h"
 #include "SlateOptMacros.h"
+#include "Subsystems/AssetEditorSubsystem.h"
+#include "Widgets/Layout/SSpacer.h"
 
 #define LOCTEXT_NAMESPACE "SFlowDiff"
 
@@ -208,7 +206,7 @@ void SFlowDiff::Construct(const FArguments& InArgs)
 	this->ChildSlot
 	[
 		SNew(SBorder)
-		.BorderImage(FEditorStyle::GetBrush("Docking.Tab", ".ContentAreaBrush"))
+		.BorderImage(FAppStyle::GetBrush("Docking.Tab", ".ContentAreaBrush"))
 		[
 			SNew(SOverlay)
 			+ SOverlay::Slot()
@@ -248,7 +246,7 @@ void SFlowDiff::Construct(const FArguments& InArgs)
 					.Value(.2f)
 					[
 						SNew(SBorder)
-						.BorderImage(FEditorStyle::GetBrush("ToolPanel.GroupBorder"))
+						.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
 						[
 							DifferencesTreeView.ToSharedRef()
 						]
@@ -531,8 +529,8 @@ void FFlowDiffPanel::GeneratePanel(UEdGraph* Graph, TSharedPtr<TArray<FDiffSingl
 			.AdditionalCommands(GraphEditorCommands)
 			.GraphToEdit(Graph)
 			.GraphToDiff(nullptr)
-			//.DiffResults(DiffResults)
-			//.FocusedDiffResult(FocusedDiffResult)
+			.DiffResults(DiffResults)
+			.FocusedDiffResult(FocusedDiffResult)
 			.IsEditable(false)
 			.GraphEvents(InEvents);
 
@@ -859,4 +857,3 @@ void SFlowDiff::OnModeChanged(const FName& InNewViewMode) const
 }
 
 #undef LOCTEXT_NAMESPACE
-#endif

@@ -4,6 +4,7 @@
 #include "CoreUObject.h"
 
 #include "FlowAsset.h"
+#include "FlowMessageLog.h"
 #include "FlowSubsystem.h"
 
 FFlowPin UFlowNode_SubGraph::StartPin(TEXT("Start"));
@@ -11,11 +12,13 @@ FFlowPin UFlowNode_SubGraph::FinishPin(TEXT("Finish"));
 
 UFlowNode_SubGraph::UFlowNode_SubGraph(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-	  , bCanInstanceIdenticalAsset(false)
+	, bCanInstanceIdenticalAsset(false)
 {
 #if WITH_EDITOR
 	Category = TEXT("Route");
 	NodeStyle = EFlowNodeStyle::SubGraph;
+
+	AllowedAssignedAssetClasses = {UFlowAsset::StaticClass()};
 #endif
 
 	InputPins = {StartPin};
@@ -95,7 +98,7 @@ void UFlowNode_SubGraph::ExecuteInput(const FName& PinName)
 	}
 	else if (!PinName.IsNone())
 	{
-		GetFlowAsset()->TriggerCustomEvent(this, PinName);
+		GetFlowAsset()->TriggerCustomInput_FromSubGraph(this, PinName);
 	}
 }
 
@@ -129,12 +132,23 @@ FString UFlowNode_SubGraph::GetNodeDescription() const
 
 UObject* UFlowNode_SubGraph::GetAssetToEdit()
 {
-	return Asset.IsNull() ? nullptr : LoadAsset<UObject>(Asset);
+	return Asset.IsNull() ? nullptr : Asset.LoadSynchronous();
 }
 
-TArray<FName> UFlowNode_SubGraph::GetContextInputs()
+EDataValidationResult UFlowNode_SubGraph::ValidateNode()
 {
-	TArray<FName> EventNames;
+	if (Asset.IsNull())
+	{
+		ValidationLog.Error<UFlowNode>(TEXT("Flow Asset not assigned or invalid!"), this);
+		return EDataValidationResult::Invalid;
+	}
+
+	return EDataValidationResult::Valid;
+}
+
+TArray<FFlowPin> UFlowNode_SubGraph::GetContextInputs()
+{
+	TArray<FFlowPin> EventNames;
 
 	if (!Asset.IsNull())
 	{
@@ -151,9 +165,9 @@ TArray<FName> UFlowNode_SubGraph::GetContextInputs()
 	return EventNames;
 }
 
-TArray<FName> UFlowNode_SubGraph::GetContextOutputs()
+TArray<FFlowPin> UFlowNode_SubGraph::GetContextOutputs()
 {
-	TArray<FName> EventNames;
+	TArray<FFlowPin> Pins;
 
 	if (!Asset.IsNull())
 	{
@@ -162,12 +176,12 @@ TArray<FName> UFlowNode_SubGraph::GetContextOutputs()
 		{
 			if (!PinName.IsNone())
 			{
-				EventNames.Emplace(PinName);
+				Pins.Emplace(PinName);
 			}
 		}
 	}
 
-	return EventNames;
+	return Pins;
 }
 
 UObject* UFlowNode_SubGraph::GetVariableHolder()

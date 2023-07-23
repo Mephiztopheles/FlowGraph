@@ -1,18 +1,13 @@
 // Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
 
 #include "Asset/FlowDiffControl.h"
-
-/**
- * Documentation: https://github.com/MothCocoon/FlowGraph/wiki/Visual-Diff
- * Set macro value to 1, if you made these changes to the engine: https://github.com/EpicGames/UnrealEngine/pull/9659
- */
-
-#if ENABLE_FLOW_DIFF
 #include "Asset/SFlowDiff.h"
 
 #include "FlowAsset.h"
 
+#include "EdGraph/EdGraph.h"
 #include "GraphDiffControl.h"
+#include "Launch/Resources/Version.h"
 #include "SBlueprintDiff.h"
 
 #define LOCTEXT_NAMESPACE "SFlowDiffControl"
@@ -21,14 +16,18 @@
 /// FFlowAssetDiffControl
 
 FFlowAssetDiffControl::FFlowAssetDiffControl(const UFlowAsset* InOldFlowAsset, const UFlowAsset* InNewFlowAsset, FOnDiffEntryFocused InSelectionCallback)
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 2
 	: TDetailsDiffControl(InOldFlowAsset, InNewFlowAsset, InSelectionCallback)
+#else
+	: FDetailsDiffControl(InOldFlowAsset, InNewFlowAsset, InSelectionCallback, false)
+#endif
 {
 }
 
 // TDetailsDiffControl::GenerateTreeEntries + "NoDifferences" entry + category label
 void FFlowAssetDiffControl::GenerateTreeEntries(TArray<TSharedPtr<FBlueprintDifferenceTreeEntry>>& OutTreeEntries, TArray<TSharedPtr<FBlueprintDifferenceTreeEntry>>& OutRealDifferences)
 {
-	TDetailsDiffControl::GenerateTreeEntries(OutTreeEntries, OutRealDifferences);
+	FDetailsDiffControl::GenerateTreeEntries(OutTreeEntries, OutRealDifferences);
 
 	const bool bHasDifferences = Children.Num() != 0;
 	if (!bHasDifferences)
@@ -190,4 +189,3 @@ void FFlowGraphToDiff::OnGraphChanged(const FEdGraphEditAction& Action) const
 }
 
 #undef LOCTEXT_NAMESPACE
-#endif

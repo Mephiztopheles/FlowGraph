@@ -5,6 +5,7 @@
 #include "FlowAsset.h"
 #include "FlowModule.h"
 #include "FlowSubsystem.h"
+#include "Launch/Resources/Version.h"
 #include "LevelSequence/FlowLevelSequencePlayer.h"
 #include "MovieScene/MovieSceneFlowTrack.h"
 #include "MovieScene/MovieSceneFlowTriggerSection.h"
@@ -37,6 +38,8 @@ UFlowNode_PlayLevelSequence::UFlowNode_PlayLevelSequence(const FObjectInitialize
 
 	InputPins.Empty();
 	InputPins.Add(FFlowPin(TEXT("Start")));
+	InputPins.Add(FFlowPin(TEXT("Pause")));
+	InputPins.Add(FFlowPin(TEXT("Resume")));
 	InputPins.Add(FFlowPin(TEXT("Stop")));
 
 	OutputPins.Add(FFlowPin(TEXT("PreStart")));
@@ -46,19 +49,23 @@ UFlowNode_PlayLevelSequence::UFlowNode_PlayLevelSequence(const FObjectInitialize
 }
 
 #if WITH_EDITOR
-TArray<FName> UFlowNode_PlayLevelSequence::GetContextOutputs()
+TArray<FFlowPin> UFlowNode_PlayLevelSequence::GetContextOutputs()
 {
 	if (Sequence.IsNull())
 	{
-		return TArray<FName>();
+		return TArray<FFlowPin>();
 	}
 
-	TArray<FName> PinNames = {};
+	TArray<FFlowPin> Pins = {};
 
 	Sequence = Sequence.LoadSynchronous();
 	if (Sequence && Sequence->GetMovieScene())
 	{
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION < 2
 		for (const UMovieSceneTrack* Track : Sequence->GetMovieScene()->GetMasterTracks())
+#else
+		for (const UMovieSceneTrack* Track : Sequence->GetMovieScene()->GetTracks())
+#endif
 		{
 			if (Track->GetClass() == UMovieSceneFlowTrack::StaticClass())
 			{
@@ -70,7 +77,7 @@ TArray<FName> UFlowNode_PlayLevelSequence::GetContextOutputs()
 						{
 							if (!EventName.IsEmpty())
 							{
-								PinNames.Emplace(EventName);
+								Pins.Emplace(EventName);
 							}
 						}
 					}
@@ -79,7 +86,7 @@ TArray<FName> UFlowNode_PlayLevelSequence::GetContextOutputs()
 		}
 	}
 
-	return PinNames;
+	return Pins;
 }
 
 void UFlowNode_PlayLevelSequence::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -127,26 +134,12 @@ void UFlowNode_PlayLevelSequence::InitializeInstance()
 
 void UFlowNode_PlayLevelSequence::CreatePlayer()
 {
-	LoadedSequence = LoadAsset<ULevelSequence>(Sequence);
+	LoadedSequence = Sequence.LoadSynchronous();
 	if (LoadedSequence)
 	{
 		ALevelSequenceActor* SequenceActor;
 
-		AActor* OwningActor = nullptr;
-		if (GetFlowAsset())
-		{
-			if (UObject* RootFlowOwner = GetFlowAsset()->GetOwner())
-			{
-				OwningActor = Cast<AActor>(RootFlowOwner); // in case Root Flow was created directly from some actor
-				if (OwningActor == nullptr)
-				{
-					if (const UActorComponent* OwningComponent = Cast<UActorComponent>(RootFlowOwner))
-					{
-						OwningActor = OwningComponent->GetOwner();
-					}
-				}
-			}
-		}
+		AActor* OwningActor = TryGetRootFlowActorOwner();
 
 		// Apply AActor::CustomTimeDilation from owner of the Root Flow
 		if (IsValid(OwningActor))
@@ -175,7 +168,7 @@ void UFlowNode_PlayLevelSequence::ExecuteInput(const FName& PinName)
 {
 	if (PinName == TEXT("Start"))
 	{
-		LoadedSequence = LoadAsset<ULevelSequence>(Sequence);
+		LoadedSequence = Sequence.LoadSynchronous();
 
 		if (GetFlowSubsystem()->GetWorld() && LoadedSequence)
 		{
@@ -206,6 +199,14 @@ void UFlowNode_PlayLevelSequence::ExecuteInput(const FName& PinName)
 	{
 		StopPlayback();
 	}
+	else if (PinName == TEXT("Pause"))
+	{
+		SequencePlayer->Pause();
+	}
+	else if (PinName == TEXT("Resume") && SequencePlayer->IsPaused())
+	{
+		SequencePlayer->Play();
+	}
 }
 
 void UFlowNode_PlayLevelSequence::OnSave_Implementation()
@@ -220,7 +221,7 @@ void UFlowNode_PlayLevelSequence::OnLoad_Implementation()
 {
 	if (ElapsedTime != 0.0f)
 	{
-		LoadedSequence = LoadAsset<ULevelSequence>(Sequence);
+		LoadedSequence = Sequence.LoadSynchronous();
 		if (GetFlowSubsystem()->GetWorld() && LoadedSequence)
 		{
 			CreatePlayer();
@@ -284,7 +285,10 @@ void UFlowNode_PlayLevelSequence::Cleanup()
 	{
 		SequencePlayer->SetFlowEventReceiver(nullptr);
 		SequencePlayer->OnFinished.RemoveAll(this);
-		SequencePlayer->Stop();
+		if (!PlaybackSettings.bPauseAtEnd)
+		{
+			SequencePlayer->Stop();
+		}
 		SequencePlayer = nullptr;
 	}
 
@@ -302,7 +306,7 @@ FString UFlowNode_PlayLevelSequence::GetPlaybackProgress() const
 {
 	if (SequencePlayer && SequencePlayer->IsPlaying())
 	{
-		return GetProgressAsString(SequencePlayer->GetCurrentTime().AsSeconds() - StartTime).Append(TEXT(" / ")).Append(GetProgressAsString(SequencePlayer->GetDuration().AsSeconds()));
+		return FString::Printf(TEXT("%.*f / %.*f"), 2, SequencePlayer->GetCurrentTime().AsSeconds() - StartTime, 2, SequencePlayer->GetDuration().AsSeconds());
 	}
 
 	return FString();
@@ -314,6 +318,17 @@ FString UFlowNode_PlayLevelSequence::GetNodeDescription() const
 	return Sequence.IsNull() ? TEXT("[No sequence]") : Sequence.GetAssetName();
 }
 
+EDataValidationResult UFlowNode_PlayLevelSequence::ValidateNode()
+{
+	if (Sequence.IsNull())
+	{
+		ValidationLog.Error<UFlowNode>(TEXT("Level Sequence asset not assigned or invalid!"), this);
+		return EDataValidationResult::Invalid;
+	}
+
+	return EDataValidationResult::Valid;
+}
+
 FString UFlowNode_PlayLevelSequence::GetStatusString() const
 {
 	return GetPlaybackProgress();
@@ -321,7 +336,7 @@ FString UFlowNode_PlayLevelSequence::GetStatusString() const
 
 UObject* UFlowNode_PlayLevelSequence::GetAssetToEdit()
 {
-	return Sequence.IsNull() ? nullptr : LoadAsset<UObject>(Sequence);
+	return Sequence.IsNull() ? nullptr : Sequence.LoadSynchronous();
 }
 #endif
 

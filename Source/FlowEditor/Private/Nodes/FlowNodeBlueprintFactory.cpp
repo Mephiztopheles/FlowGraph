@@ -9,7 +9,6 @@
 #include "ClassViewerFilter.h"
 #include "ClassViewerModule.h"
 #include "Editor.h"
-#include "EditorStyleSet.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/MessageDialog.h"
 #include "Modules/ModuleManager.h"
@@ -45,7 +44,7 @@ public:
 		[
 			SNew(SBorder)
 				.Visibility(EVisibility::Visible)
-				.BorderImage(FEditorStyle::GetBrush("Menu.Background"))
+				.BorderImage(FAppStyle::GetBrush("Menu.Background"))
 				[
 					SNew(SBox)
 						.Visibility(EVisibility::Visible)
@@ -56,7 +55,7 @@ public:
 								.FillHeight(1)
 								[
 									SNew(SBorder)
-										.BorderImage(FEditorStyle::GetBrush("ToolPanel.GroupBorder"))
+										.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
 										.Content()
 										[
 											SAssignNew(ParentClassContainer, SVerticalBox)
@@ -69,14 +68,14 @@ public:
 								.Padding(8)
 								[
 									SNew(SUniformGridPanel)
-										.SlotPadding(FEditorStyle::GetMargin("StandardDialog.SlotPadding"))
-										.MinDesiredSlotWidth(FEditorStyle::GetFloat("StandardDialog.MinDesiredSlotWidth"))
-										.MinDesiredSlotHeight(FEditorStyle::GetFloat("StandardDialog.MinDesiredSlotHeight"))
+										.SlotPadding(FAppStyle::GetMargin("StandardDialog.SlotPadding"))
+										.MinDesiredSlotWidth(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotWidth"))
+										.MinDesiredSlotHeight(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotHeight"))
 										+ SUniformGridPanel::Slot(0, 0)
 											[
 												SNew(SButton)
 													.HAlign(HAlign_Center)
-													.ContentPadding(FEditorStyle::GetMargin("StandardDialog.ContentPadding"))
+													.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
 													.OnClicked(this, &SFlowNodeBlueprintCreateDialog::OkClicked)
 													.Text(LOCTEXT("CreateFlowNodeBlueprintOk", "OK"))
 											]
@@ -84,7 +83,7 @@ public:
 											[
 												SNew(SButton)
 													.HAlign(HAlign_Center)
-													.ContentPadding(FEditorStyle::GetMargin("StandardDialog.ContentPadding"))
+													.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
 													.OnClicked(this, &SFlowNodeBlueprintCreateDialog::CancelClicked)
 													.Text(LOCTEXT("CreateFlowNodeBlueprintCancel", "Cancel"))
 											]
@@ -262,7 +261,7 @@ UObject* UFlowNodeBlueprintFactory::FactoryCreateNew(UClass* Class, UObject* InP
 
 	if (NewBP && NewBP->UbergraphPages.Num() > 0)
 	{
-		UBlueprintEditorSettings* Settings = GetMutableDefault<UBlueprintEditorSettings>();
+		const UBlueprintEditorSettings* Settings = GetMutableDefault<UBlueprintEditorSettings>();
 		if(Settings && Settings->bSpawnDefaultBlueprintNodes)
 		{
 			int32 NodePositionY = 0;

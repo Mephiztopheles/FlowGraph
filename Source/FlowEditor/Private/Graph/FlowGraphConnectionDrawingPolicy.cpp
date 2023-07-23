@@ -2,8 +2,8 @@
 
 #include "Graph/FlowGraphConnectionDrawingPolicy.h"
 
-#include "Asset/FlowAssetEditor.h"
 #include "Graph/FlowGraph.h"
+#include "Graph/FlowGraphEditor.h"
 #include "Graph/FlowGraphEditorSettings.h"
 #include "Graph/FlowGraphSchema.h"
 #include "Graph/FlowGraphSettings.h"
@@ -35,6 +35,7 @@ FFlowGraphConnectionDrawingPolicy::FFlowGraphConnectionDrawingPolicy(int32 InBac
 	// Cache off the editor options
 	RecentWireDuration = UFlowGraphSettings::Get()->RecentWireDuration;
 
+	InactiveColor = UFlowGraphSettings::Get()->InactiveWireColor;
 	RecentColor = UFlowGraphSettings::Get()->RecentWireColor;
 	RecordedColor = UFlowGraphSettings::Get()->RecordedWireColor;
 	SelectedColor = UFlowGraphSettings::Get()->SelectedWireColor;
@@ -80,10 +81,10 @@ void FFlowGraphConnectionDrawingPolicy::BuildPaths()
 
 	if (GraphObj && (UFlowGraphEditorSettings::Get()->bHighlightInputWiresOfSelectedNodes || UFlowGraphEditorSettings::Get()->bHighlightOutputWiresOfSelectedNodes))
 	{
-		const TSharedPtr<FFlowAssetEditor> FlowAssetEditor = FFlowGraphUtils::GetFlowAssetEditor(GraphObj);
-		if (FlowAssetEditor.IsValid())
+		const TSharedPtr<SFlowGraphEditor> FlowGraphEditor = FFlowGraphUtils::GetFlowGraphEditor(GraphObj);
+		if (FlowGraphEditor.IsValid())
 		{
-			for (UFlowGraphNode* SelectedNode : FlowAssetEditor->GetSelectedFlowNodes())
+			for (UFlowGraphNode* SelectedNode : FlowGraphEditor->GetSelectedFlowNodes())
 			{
 				for (UEdGraphPin* Pin : SelectedNode->Pins)
 				{
@@ -169,7 +170,7 @@ void FFlowGraphConnectionDrawingPolicy::DetermineWiringStyle(UEdGraphPin* Output
 			}
 
 			// It's not followed, fade it and keep it thin
-			Params.WireColor = Schema->GetPinTypeColor(OutputPin->PinType);
+			Params.WireColor = InactiveColor;
 			Params.WireThickness = InactiveWireThickness;
 		}
 	}
@@ -288,7 +289,7 @@ FVector2D FFlowGraphConnectionDrawingPolicy::GetControlPoint(const FVector2D& So
 
 bool FFlowGraphConnectionDrawingPolicy::ShouldChangeTangentForReroute(UFlowGraphNode_Reroute* Reroute)
 {
-	if (bool* pResult = RerouteToReversedDirectionMap.Find(Reroute))
+	if (const bool* pResult = RerouteToReversedDirectionMap.Find(Reroute))
 	{
 		return *pResult;
 	}
@@ -299,9 +300,9 @@ bool FFlowGraphConnectionDrawingPolicy::ShouldChangeTangentForReroute(UFlowGraph
 		FVector2D AverageLeftPin;
 		FVector2D AverageRightPin;
 		FVector2D CenterPin;
-		bool bCenterValid = Reroute->OutputPins.Num() == 0 ? false : FindPinCenter(Reroute->OutputPins[0], /*out*/ CenterPin);
-		bool bLeftValid = GetAverageConnectedPosition(Reroute, EGPD_Input, /*out*/ AverageLeftPin);
-		bool bRightValid = GetAverageConnectedPosition(Reroute, EGPD_Output, /*out*/ AverageRightPin);
+		const bool bCenterValid = Reroute->OutputPins.Num() == 0 ? false : FindPinCenter(Reroute->OutputPins[0], /*out*/ CenterPin);
+		const bool bLeftValid = GetAverageConnectedPosition(Reroute, EGPD_Input, /*out*/ AverageLeftPin);
+		const bool bRightValid = GetAverageConnectedPosition(Reroute, EGPD_Output, /*out*/ AverageRightPin);
 
 		if (bLeftValid && bRightValid)
 		{
@@ -325,13 +326,13 @@ bool FFlowGraphConnectionDrawingPolicy::ShouldChangeTangentForReroute(UFlowGraph
 	}
 }
 
-bool FFlowGraphConnectionDrawingPolicy::FindPinCenter(UEdGraphPin* Pin, FVector2D& OutCenter) const
+bool FFlowGraphConnectionDrawingPolicy::FindPinCenter(const UEdGraphPin* Pin, FVector2D& OutCenter) const
 {
-	if (const TSharedPtr<SGraphPin>* pPinWidget = PinToPinWidgetMap.Find(Pin))
+	if (const TSharedPtr<SGraphPin>* PinWidget = PinToPinWidgetMap.Find(Pin))
 	{
-		if (FArrangedWidget* pPinEntry = PinGeometries->Find((*pPinWidget).ToSharedRef()))
+		if (const FArrangedWidget* PinEntry = PinGeometries->Find((*PinWidget).ToSharedRef()))
 		{
-			OutCenter = FGeometryHelper::CenterOf(pPinEntry->Geometry);
+			OutCenter = FGeometryHelper::CenterOf(PinEntry->Geometry);
 			return true;
 		}
 	}
@@ -350,7 +351,7 @@ bool FFlowGraphConnectionDrawingPolicy::GetAverageConnectedPosition(UFlowGraphNo
 	}
 	
 	UEdGraphPin* Pin = (Direction == EGPD_Input) ? Reroute->InputPins[0] : Reroute->OutputPins[0];
-	for (UEdGraphPin* LinkedPin : Pin->LinkedTo)
+	for (const UEdGraphPin* LinkedPin : Pin->LinkedTo)
 	{
 		FVector2D CenterPoint;
 		if (FindPinCenter(LinkedPin, /*out*/ CenterPoint))

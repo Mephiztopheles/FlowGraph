@@ -50,7 +50,7 @@ void SAssetRevisionMenu::Construct(const FArguments& InArgs, const FString& InFi
 		[
 			SNew(SBorder)
 			.Visibility(this, &SAssetRevisionMenu::GetInProgressVisibility)
-			.BorderImage(FEditorStyle::GetBrush("Menu.Background"))
+			.BorderImage(FAppStyle::GetBrush("Menu.Background"))
 			.Content()
 			[
 				SNew(SHorizontalBox)

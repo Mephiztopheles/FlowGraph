@@ -2,10 +2,8 @@
 
 #include "Graph/Widgets/SFlowGraphNode.h"
 #include "FlowEditorStyle.h"
-#include "Graph/FlowGraphEditorSettings.h"
 #include "Graph/FlowGraphSettings.h"
 
-#include "FlowAsset.h"
 #include "Nodes/FlowNode.h"
 
 #include "EdGraph/EdGraphPin.h"
@@ -24,6 +22,7 @@
 #include "Styling/SlateColor.h"
 #include "TutorialMetaData.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
@@ -56,7 +55,7 @@ void SFlowGraphNode::Construct(const FArguments& InArgs, UFlowGraphNode* InNode)
 
 void SFlowGraphNode::GetNodeInfoPopups(FNodeInfoContext* Context, TArray<FGraphInformationPopupInfo>& Popups) const
 {
-	const FString Description = FlowGraphNode->GetNodeDescription();
+	const FString& Description = FlowGraphNode->GetNodeDescription(); 
 	if (!Description.IsEmpty())
 	{
 		const FGraphInformationPopupInfo DescriptionPopup = FGraphInformationPopupInfo(nullptr, UFlowGraphSettings::Get()->NodeDescriptionBackground, Description);
@@ -102,18 +101,18 @@ const FSlateBrush* SFlowGraphNode::GetShadowBrush(bool bSelected) const
 void SFlowGraphNode::GetOverlayBrushes(bool bSelected, const FVector2D WidgetSize, TArray<FOverlayBrushInfo>& Brushes) const
 {
 	// Node breakpoint
-	if (FlowGraphNode->NodeBreakpoint.bHasBreakpoint)
+	if (FlowGraphNode->NodeBreakpoint.IsAllowed())
 	{
 		FOverlayBrushInfo NodeBrush;
 
-		if (FlowGraphNode->NodeBreakpoint.bBreakpointHit)
+		if (FlowGraphNode->NodeBreakpoint.IsHit())
 		{
 			NodeBrush.Brush = FFlowEditorStyle::Get()->GetBrush(TEXT("FlowGraph.BreakpointHit"));
 			NodeBrush.OverlayOffset.X = WidgetSize.X - 12.0f;
 		}
 		else
 		{
-			NodeBrush.Brush = FFlowEditorStyle::Get()->GetBrush(FlowGraphNode->NodeBreakpoint.bBreakpointEnabled ? TEXT("FlowGraph.BreakpointEnabled") : TEXT("FlowGraph.BreakpointDisabled"));
+			NodeBrush.Brush = FFlowEditorStyle::Get()->GetBrush(FlowGraphNode->NodeBreakpoint.IsEnabled() ? TEXT("FlowGraph.BreakpointEnabled") : TEXT("FlowGraph.BreakpointDisabled"));
 			NodeBrush.OverlayOffset.X = WidgetSize.X;
 		}
 
@@ -123,7 +122,7 @@ void SFlowGraphNode::GetOverlayBrushes(bool bSelected, const FVector2D WidgetSiz
 	}
 
 	// Pin breakpoints
-	for (const TPair<FEdGraphPinReference, FFlowBreakpoint>& PinBreakpoint : FlowGraphNode->PinBreakpoints)
+	for (const TPair<FEdGraphPinReference, FFlowPinTrait>& PinBreakpoint : FlowGraphNode->PinBreakpoints)
 	{
 		if (PinBreakpoint.Key.Get()->Direction == EGPD_Input)
 		{
@@ -136,13 +135,13 @@ void SFlowGraphNode::GetOverlayBrushes(bool bSelected, const FVector2D WidgetSiz
 	}
 }
 
-void SFlowGraphNode::GetPinBrush(const bool bLeftSide, const float WidgetWidth, const int32 PinIndex, const FFlowBreakpoint& Breakpoint, TArray<FOverlayBrushInfo>& Brushes) const
+void SFlowGraphNode::GetPinBrush(const bool bLeftSide, const float WidgetWidth, const int32 PinIndex, const FFlowPinTrait& Breakpoint, TArray<FOverlayBrushInfo>& Brushes) const
 {
-	if (Breakpoint.bHasBreakpoint)
+	if (Breakpoint.IsAllowed())
 	{
 		FOverlayBrushInfo PinBrush;
 
-		if (Breakpoint.bBreakpointHit)
+		if (Breakpoint.IsHit())
 		{
 			PinBrush.Brush = FFlowEditorStyle::Get()->GetBrush(TEXT("FlowGraph.PinBreakpointHit"));
 			PinBrush.OverlayOffset.X = bLeftSide ? 0.0f : (WidgetWidth - 36.0f);
@@ -150,7 +149,7 @@ void SFlowGraphNode::GetPinBrush(const bool bLeftSide, const float WidgetWidth, 
 		}
 		else
 		{
-			PinBrush.Brush = FFlowEditorStyle::Get()->GetBrush(Breakpoint.bBreakpointEnabled ? TEXT("FlowGraph.BreakpointEnabled") : TEXT("FlowGraph.BreakpointDisabled"));
+			PinBrush.Brush = FFlowEditorStyle::Get()->GetBrush(Breakpoint.IsEnabled() ? TEXT("FlowGraph.BreakpointEnabled") : TEXT("FlowGraph.BreakpointDisabled"));
 			PinBrush.OverlayOffset.X = bLeftSide ? -24.0f : WidgetWidth;
 			PinBrush.OverlayOffset.Y = 16.0f + PinIndex * 28.0f;
 		}
@@ -361,10 +360,42 @@ void SFlowGraphNode::UpdateErrorInfo()
 {
 	if (const UFlowNode* FlowNode = FlowGraphNode->GetFlowNode())
 	{
+		if (FlowNode->ValidationLog.Messages.Num() > 0)
+		{
+			EMessageSeverity::Type MaxSeverity = EMessageSeverity::Info;
+			for (const TSharedRef<FTokenizedMessage>& Message : FlowNode->ValidationLog.Messages)
+			{
+				if (Message->GetSeverity() < MaxSeverity)
+				{
+					MaxSeverity = Message->GetSeverity();
+				}
+			}
+
+			switch(MaxSeverity)
+			{
+				case EMessageSeverity::Error:
+					ErrorMsg = FString(TEXT("ERROR!"));
+					ErrorColor = FAppStyle::GetColor("ErrorReporting.BackgroundColor");
+					break;
+				case EMessageSeverity::PerformanceWarning:
+				case EMessageSeverity::Warning:
+					ErrorMsg = FString(TEXT("WARNING!"));
+					ErrorColor = FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor");
+					break;
+				case EMessageSeverity::Info:
+					ErrorMsg = FString(TEXT("NOTE"));
+					ErrorColor = FAppStyle::GetColor("InfoReporting.BackgroundColor");
+					break;
+				default: ;
+			}
+
+			return;
+		}
+
 		if (FlowNode->GetClass()->HasAnyClassFlags(CLASS_Deprecated) || FlowNode->bNodeDeprecated)
 		{
 			ErrorMsg = FlowNode->ReplacedBy ? FString::Printf(TEXT(" REPLACED BY: %s "), *FlowNode->ReplacedBy->GetName()) : FString(TEXT(" DEPRECATED! "));
-			ErrorColor = FEditorStyle::GetColor("ErrorReporting.WarningBackgroundColor");
+			ErrorColor = FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor");
 			return;
 		}
 	}
@@ -389,7 +420,7 @@ TSharedRef<SWidget> SFlowGraphNode::CreateTitleWidget(TSharedPtr<SNodeTitle> Nod
 TSharedRef<SWidget> SFlowGraphNode::CreateNodeContentArea()
 {
 	return SNew(SBorder)
-		.BorderImage(FEditorStyle::GetBrush("NoBorder"))
+		.BorderImage(FAppStyle::GetBrush("NoBorder"))
 		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Fill)
 		[
@@ -471,7 +502,7 @@ TSharedPtr<SWidget> SFlowGraphNode::GetEnabledStateWidget() const
 			LOCTEXT("DisabledNodeTooltip", "This node is disabled and will not be executed");
 
 		return SNew(SBorder)
-			.BorderImage(FEditorStyle::GetBrush(bPassThrough ? "Graph.Node.DevelopmentBanner" : "Graph.Node.DisabledBanner"))
+			.BorderImage(FAppStyle::GetBrush(bPassThrough ? "Graph.Node.DevelopmentBanner" : "Graph.Node.DisabledBanner"))
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Fill)
 			[
@@ -541,7 +572,7 @@ void SFlowGraphNode::CreateInputSideAddButton(TSharedPtr<SVerticalBox> OutputBox
 		. Padding( 0,0,7,0 )
 		[
 			SNew(SImage)
-			.Image(FEditorStyle::GetBrush(TEXT("Icons.PlusCircle")))
+			.Image(FAppStyle::GetBrush(TEXT("Icons.PlusCircle")))
 		]
 		+SHorizontalBox::Slot()
 		.AutoWidth()
@@ -576,7 +607,7 @@ void SFlowGraphNode::CreateOutputSideAddButton(TSharedPtr<SVerticalBox> OutputBo
 		.Padding(7,0,0,0)
 		[
 			SNew(SImage)
-			.Image(FEditorStyle::GetBrush(TEXT("Icons.PlusCircle")))
+			.Image(FAppStyle::GetBrush(TEXT("Icons.PlusCircle")))
 		];
 
 		AddPinButton(OutputBox, AddPinWidget.ToSharedRef(), EGPD_Output);
@@ -599,7 +630,7 @@ void SFlowGraphNode::AddPinButton(TSharedPtr<SVerticalBox> OutputBox, const TSha
 
 	const TSharedRef<SButton> AddPinButton = SNew(SButton)
 	.ContentPadding(0.0f)
-	.ButtonStyle(FEditorStyle::Get(), "NoBorder")
+	.ButtonStyle(FAppStyle::Get(), "NoBorder")
 	.OnClicked(this, &SFlowGraphNode::OnAddFlowPin, Direction)
 	.IsEnabled(this, &SFlowGraphNode::IsNodeEditable)
 	.ToolTipText(PinTooltipText)

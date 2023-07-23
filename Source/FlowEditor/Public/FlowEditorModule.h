@@ -5,6 +5,8 @@
 #include "AssetTypeCategories.h"
 #include "IAssetTypeActions.h"
 #include "Modules/ModuleInterface.h"
+#include "PropertyEditorDelegates.h"
+#include "Toolkits/IToolkit.h"
 
 class FSlateStyleSet;
 struct FGraphPanelPinConnectionFactory;
@@ -22,6 +24,7 @@ public:
 private:
 	TArray<TSharedRef<IAssetTypeActions>> RegisteredAssetActions;
 	TSet<FName> CustomClassLayouts;
+	TSet<FName> CustomStructLayouts;
 
 public:
 	virtual void StartupModule() override;
@@ -31,15 +34,18 @@ private:
 	void RegisterAssets();
 	void UnregisterAssets();
 
-	void RegisterPropertyCustomizations() const;
+	void RegisterDetailCustomizations();
+	void UnregisterDetailCustomizations();
+
 	void RegisterCustomClassLayout(const TSubclassOf<UObject> Class, const FOnGetDetailCustomizationInstance DetailLayout);
+	void RegisterCustomStructLayout(const UScriptStruct& Struct, const FOnGetPropertyTypeCustomizationInstance DetailLayout);
 
 public:
 	FDelegateHandle FlowTrackCreateEditorHandle;
 	FDelegateHandle ModulesChangedHandle;
 
 private:
-	void ModulesChangesCallback(FName ModuleName, EModuleChangeReason ReasonForChange);
+	void ModulesChangesCallback(FName ModuleName, EModuleChangeReason ReasonForChange) const;
 	void RegisterAssetIndexers() const;
 
 	void CreateFlowToolbar(FToolBarBuilder& ToolbarBuilder) const;

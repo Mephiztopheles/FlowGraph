@@ -41,8 +41,8 @@ UEdGraph* UFlowGraph::CreateGraph(UFlowAsset* InFlowAsset)
 
 void UFlowGraph::RefreshGraph()
 {
-	// don't run fixup in commandlets or PIE
-	if (!IsRunningCommandlet() && GEditor && !GEditor->PlayWorld)
+	// don't run fixup in PIE
+	if (GEditor && !GEditor->PlayWorld)
 	{
 		// check if all Graph Nodes have expected, up-to-date type
 		CastChecked<UFlowGraphSchema>(GetSchema())->GatherNativeNodes();
@@ -59,12 +59,12 @@ void UFlowGraph::RefreshGraph()
 			}
 		}
 
-		// update context pins
+		// refresh nodes
 		TArray<UFlowGraphNode*> FlowGraphNodes;
 		GetNodesOfClass<UFlowGraphNode>(FlowGraphNodes);
 		for (UFlowGraphNode* GraphNode : FlowGraphNodes)
 		{
-			GraphNode->RefreshContextPins(true);
+			GraphNode->OnGraphRefresh();
 		}
 	}
 }

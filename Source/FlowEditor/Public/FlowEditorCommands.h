@@ -7,19 +7,24 @@
 #include "Framework/Commands/UICommandInfo.h"
 #include "Templates/SharedPointer.h"
 
-class FLOWEDITOR_API FFlowToolbarCommands final : public TCommands<FFlowToolbarCommands>
+class FLOWEDITOR_API FFlowToolbarCommands : public TCommands<FFlowToolbarCommands>
 {
 public:
 	FFlowToolbarCommands();
 
 	TSharedPtr<FUICommandInfo> RefreshAsset;
+	TSharedPtr<FUICommandInfo> ValidateAsset;
+
+	TSharedPtr<FUICommandInfo> SearchInAsset;
+	TSharedPtr<FUICommandInfo> EditAssetDefaults;
+
 	TSharedPtr<FUICommandInfo> GoToParentInstance;
 
 	virtual void RegisterCommands() override;
 };
 
 /** Generic graph commands for the flow graph */
-class FFlowGraphCommands final : public TCommands<FFlowGraphCommands>
+class FLOWEDITOR_API FFlowGraphCommands : public TCommands<FFlowGraphCommands>
 {
 public:
 	FFlowGraphCommands();
@@ -54,15 +59,15 @@ public:
 };
 
 /** Handles spawning nodes by keyboard shortcut */
-class FFlowSpawnNodeCommands : public TCommands<FFlowSpawnNodeCommands>
+class FLOWEDITOR_API FFlowSpawnNodeCommands : public TCommands<FFlowSpawnNodeCommands>
 {
 public:
 	FFlowSpawnNodeCommands();
 
 	virtual void RegisterCommands() override;
 
-	TSharedPtr<const FInputChord> GetChordByClass(UClass* NodeClass) const;
-	TSharedPtr<FEdGraphSchemaAction> GetActionByChord(FInputChord& InChord) const;
+	TSharedPtr<const FInputChord> GetChordByClass(const UClass* NodeClass) const;
+	TSharedPtr<FEdGraphSchemaAction> GetActionByChord(const FInputChord& InChord) const;
 
 private:
 	TSharedPtr<FEdGraphSchemaAction> GetActionByClass(UClass* NodeClass) const;

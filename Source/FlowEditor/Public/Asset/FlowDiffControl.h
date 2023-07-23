@@ -2,14 +2,6 @@
 
 #pragma once
 
-/**
- * Documentation: https://github.com/MothCocoon/FlowGraph/wiki/Visual-Diff
- * Set macro value to 1, if you made these changes to the engine: https://github.com/EpicGames/UnrealEngine/pull/9659
- */
-
-#include "FlowEditorDefines.h"
-#if ENABLE_FLOW_DIFF
-#include "DetailsDiff.h"
 #include "DiffResults.h"
 #include "IAssetTypeActions.h"
 #include "Kismet/Private/DiffControl.h"
@@ -23,7 +15,7 @@ class SFlowDiff;
 
 /////////////////////////////////////////////////////////////////////////////
 /// FFlowAssetDiffControl
-class FLOWEDITOR_API FFlowAssetDiffControl : public TDetailsDiffControl<false>
+class FLOWEDITOR_API FFlowAssetDiffControl : public FDetailsDiffControl
 {
 public:
 	FFlowAssetDiffControl(const UFlowAsset* InOldFlowAsset, const UFlowAsset* InNewFlowAsset, FOnDiffEntryFocused InSelectionCallback);
@@ -70,4 +62,3 @@ private:
 
 	FDelegateHandle OnGraphChangedDelegateHandle;
 };
-#endif

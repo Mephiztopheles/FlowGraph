@@ -385,9 +385,11 @@ void UFlowComponent::FinishRootFlow(UFlowAsset* TemplateAsset, const EFlowFinish
 
 TSet<UFlowAsset*> UFlowComponent::GetRootInstances(const UObject* Owner) const
 {
+	const UObject* OwnerToCheck = IsValid(Owner) ? Owner : this;
+
 	if (const UFlowSubsystem* FlowSubsystem = GetFlowSubsystem())
 	{
-		return FlowSubsystem->GetRootInstancesByOwner(this);
+		return FlowSubsystem->GetRootInstancesByOwner(OwnerToCheck);
 	}
 
 	return TSet<UFlowAsset*>();
@@ -405,6 +407,12 @@ UFlowAsset* UFlowComponent::GetRootFlowInstance() const
 	}
 
 	return nullptr;
+}
+
+void UFlowComponent::OnTriggerRootFlowOutputEventDispatcher(UFlowAsset* RootFlowInstance, const FName& EventName)
+{
+	BP_OnTriggerRootFlowOutputEvent(RootFlowInstance, EventName);
+	OnTriggerRootFlowOutputEvent(RootFlowInstance, EventName);
 }
 
 void UFlowComponent::SaveRootFlow(TArray<FFlowAssetSaveData>& SavedFlowInstances)
