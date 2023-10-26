@@ -15,8 +15,6 @@ class UFlowNode;
 
 DECLARE_DELEGATE(FFlowGraphNodeEvent);
 
-DECLARE_DELEGATE(FFlowGraphNodeEvent);
-
 /**
  * Graph representation of the Flow Node
  */

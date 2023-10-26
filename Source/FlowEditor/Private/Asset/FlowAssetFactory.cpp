@@ -111,17 +111,7 @@ UObject* UFlowAssetFactory::FactoryCreateNew(UClass* Class, UObject* InParent, F
 	UFlowAsset* NewFlowAsset;
 	if (AssetClass)
 	{
-		NewFlowAsset = nullptr;
-	if (AssetClass != nullptr)
-	{
 		NewFlowAsset = NewObject<UFlowAsset>(InParent, AssetClass, Name, Flags | RF_Transactional, Context);
-	}
-	else
-	{
-		// if we have no asset class, use the passed-in class instead
-		NewFlowAsset = NewObject<UFlowAsset>(InParent, AssetClass, Name, Flags | RF_Transactional, Context);
-	}
-
 	}
 	else
 	{

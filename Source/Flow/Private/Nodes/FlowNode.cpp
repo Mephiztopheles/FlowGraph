@@ -470,7 +470,6 @@ bool UFlowNode::IsOutputConnected(const FName& PinName) const
 {
 	return OutputPins.Contains(PinName) && OutgoingConnections.Contains(PinName);
 }
-
 UFlowSubsystem* UFlowNode::GetFlowSubsystem() const
 {
 	return GetFlowAsset() ? GetFlowAsset()->GetFlowSubsystem() : nullptr;
@@ -666,6 +665,11 @@ void UFlowNode::TriggerOutput(const FName& PinName, const bool bFinish /*= false
 
 		GetFlowAsset()->TriggerInput(FlowPin);
 	}
+}
+
+void UFlowNode::TriggerOutputPin(const FFlowOutputPinHandle Pin, const bool bFinish, const EFlowPinActivationType ActivationType /*= Default*/)
+{
+	TriggerOutput(Pin.PinName, bFinish, ActivationType);
 }
 
 void UFlowNode::TriggerOutputPin(const FFlowOutputPinHandle Pin, const bool bFinish, const EFlowPinActivationType ActivationType /*= Default*/)

@@ -1,4 +1,4 @@
-﻿// Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
+// Copyright https://github.com/MothCocoon/FlowGraph/graphs/contributors
 
 // NOTE (gtaylor) This class is planned for submission to Epic to include in baseline UE.
 //  If/when that happens, we will want to remove this version and update to the latest one in the PropertyModule

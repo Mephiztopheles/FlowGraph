@@ -111,7 +111,10 @@ UFlowAsset* UFlowSubsystem::CreateRootFlow(UObject* Owner, UFlowAsset* FlowAsset
 	}
 
 	UFlowAsset* NewFlow = CreateFlowInstance(Owner, FlowAsset);
-	RootInstances.Add(NewFlow, Owner);
+	if (NewFlow)
+	{
+		RootInstances.Add(NewFlow, Owner);
+	}
 
 	return NewFlow;
 }
@@ -194,13 +197,14 @@ UFlowAsset* UFlowSubsystem::CreateSubFlow(UFlowNode_SubGraph* SubGraphNode, TMap
 
 		InstancedSubFlows.Add(SubGraphNode, NewInstance);
 
-		if (bPreloading)
-		{
-			NewInstance->PreloadNodes();
+			if (bPreloading)
+			{
+				NewInstance->PreloadNodes();
+			}
 		}
 	}
 
-	if (!bPreloading)
+	if (InstancedSubFlows.Contains(SubGraphNode) && !bPreloading)
 	{
 		// get instanced asset from map - in case it was already instanced by calling CreateSubFlow() with bPreloading == true
 		UFlowAsset* AssetInstance = InstancedSubFlows[SubGraphNode];
@@ -235,7 +239,7 @@ void UFlowSubsystem::RemoveSubFlow(UFlowNode_SubGraph* SubGraphNode, const EFlow
 UFlowAsset* UFlowSubsystem::CreateFlowInstance(const TWeakObjectPtr<UObject> Owner, TSoftObjectPtr<UFlowAsset> FlowAsset, FString NewInstanceName)
 {
 	UFlowAsset* LoadedFlowAsset = FlowAsset.LoadSynchronous();
-	if (!ensureAlways(LoadedFlowAsset) || !FlowAsset.IsValid())
+	if (LoadedFlowAsset == nullptr)
 	{
 		return nullptr;
 	}

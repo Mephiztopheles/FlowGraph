@@ -48,7 +48,7 @@ class FLOW_API UFlowSettings : public UDeveloperSettings
 	bool bUseAdaptiveNodeTitles;
 
 	// Default class to use as a FlowAsset's "ExpectedOwnerClass" 
-	UPROPERTY(EditAnywhere, Config, Category = "Nodes", meta = (MustImplement = "FlowOwnerInterface"))
+	UPROPERTY(EditAnywhere, Config, Category = "Nodes", meta = (MustImplement = "/Script.Flow.FlowOwnerInterface"))
 	FSoftClassPath DefaultExpectedOwnerClass;
 	
 	UPROPERTY(Config, EditAnywhere, Category="Properties", meta=(DisplayName="Input Meta Tag", EditCondition="bUseCustomMetaTagsForInputOutputs"))
