@@ -672,11 +672,6 @@ void UFlowNode::TriggerOutputPin(const FFlowOutputPinHandle Pin, const bool bFin
 	TriggerOutput(Pin.PinName, bFinish, ActivationType);
 }
 
-void UFlowNode::TriggerOutputPin(const FFlowOutputPinHandle Pin, const bool bFinish, const EFlowPinActivationType ActivationType /*= Default*/)
-{
-	TriggerOutput(Pin.PinName, bFinish, ActivationType);
-}
-
 void UFlowNode::TriggerOutput(const FString& PinName, const bool bFinish)
 {
 	TriggerOutput(*PinName, bFinish);

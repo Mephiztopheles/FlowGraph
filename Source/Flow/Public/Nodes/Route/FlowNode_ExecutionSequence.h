@@ -32,11 +32,7 @@ protected:
 public:
 #if WITH_EDITOR
 	virtual bool CanUserAddOutput() const override { return true; }
-
-	virtual FString GetNodeDescription() const override;
 #endif
-
-	virtual void OnLoad_Implementation() override;
 	
 protected:
 	virtual void ExecuteInput(const FName& PinName) override;

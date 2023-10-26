@@ -67,35 +67,3 @@ FString UFlowNode_ExecutionSequence::GetNodeDescription() const
 	return Super::GetNodeDescription();
 }
 #endif
-
-#if WITH_EDITOR
-FString UFlowNode_ExecutionSequence::GetNodeDescription() const
-{
-	if(bSavePinExecutionState)
-	{
-		return TEXT("Saves pin execution state");
-	}
-	
-	return Super::GetNodeDescription();
-}
-#endif
-
-void UFlowNode_ExecutionSequence::OnLoad_Implementation()
-{
-	ExecuteNewConnections();
-}
-
-void UFlowNode_ExecutionSequence::ExecuteNewConnections()
-{
-	for (const FFlowPin& Output : OutputPins)
-	{
-		const FConnectedPin& Connection = GetOutgoingConnection(Output.PinName);
-		if(ExecutedConnections.Contains(Connection.NodeGuid))
-		{
-			continue;
-		}
-
-		TriggerOutput(Output.PinName, false);
-		ExecutedConnections.Emplace(Connection.NodeGuid);
-	}
-}

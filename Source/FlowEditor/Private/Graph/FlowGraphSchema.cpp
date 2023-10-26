@@ -20,6 +20,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "EdGraph/EdGraph.h"
 #include "Editor.h"
+#include "FlowPropertyHelpers.h"
 #include "ScopedTransaction.h"
 #include "Asset/FlowAssetEditor.h"
 #include "Graph/Nodes/FlowGraphNode_PropertyGetter.h"
@@ -108,19 +109,6 @@ void UFlowGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) const
 	}
 
 	CastChecked<UFlowGraph>(&Graph)->GetFlowAsset()->HarvestNodeConnections();
-}
-
-UFlowGraphNode* UFlowGraphSchema::CreateDefaultNode(UEdGraph& Graph, const UFlowAsset* AssetClassDefaults, const TSubclassOf<UFlowNode>& NodeClass, const FVector2D& Offset, const bool bPlacedAsGhostNode)
-{
-	UFlowGraphNode* NewGraphNode = FFlowGraphSchemaAction_NewNode::CreateNode(&Graph, nullptr, NodeClass, Offset);
-	SetNodeMetaData(NewGraphNode, FNodeMetadata::DefaultGraphNode);
-
-	if (bPlacedAsGhostNode)
-	{
-		NewGraphNode->MakeAutomaticallyPlacedGhostNode();
-	}
-
-	return NewGraphNode;
 }
 
 UFlowGraphNode* UFlowGraphSchema::CreateDefaultNode(UEdGraph& Graph, const UFlowAsset* AssetClassDefaults, const TSubclassOf<UFlowNode>& NodeClass, const FVector2D& Offset, const bool bPlacedAsGhostNode)
