@@ -157,6 +157,7 @@ public:
 		return nullptr;
 	}
 
+	UFUNCTION(BlueprintPure, Category = "FlowAsset")
 	virtual UFlowNode* GetDefaultEntryNode() const;
 
 #if WITH_EDITOR
@@ -256,7 +257,7 @@ private:
 //////////////////////////////////////////////////////////////////////////
 // Executing asset instance
 
-private:
+protected:
 	UPROPERTY()
 	UFlowAsset* TemplateAsset;
 
@@ -360,7 +361,7 @@ protected:
 	// Expects to be owned (at runtime) by an object with this class (or one of its subclasses)
 	// NOTE - If the class is an AActor, and the flow asset is owned by a component,
 	//        it will consider the component's owner for the AActor
-	UPROPERTY(EditAnywhere, Category = "Flow", meta = (MustImplement = "FlowOwnerInterface"))
+	UPROPERTY(EditAnywhere, Category = "Flow", meta = (MustImplement = "/Script.Flow.FlowOwnerInterface"))
 	TSubclassOf<UObject> ExpectedOwnerClass;
 
 //////////////////////////////////////////////////////////////////////////
@@ -373,10 +374,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "SaveGame")
 	void LoadInstance(const FFlowAssetSaveData& AssetRecord);
 
-private:
-	void OnActivationStateLoaded(UFlowNode* Node);
-
 protected:
+	virtual void OnActivationStateLoaded(UFlowNode* Node);
+
 	UFUNCTION(BlueprintNativeEvent, Category = "SaveGame")
 	void OnSave();
 
